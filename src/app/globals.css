@@ -165,6 +165,13 @@
     scroll-padding-top: 5rem;
   }
 
+  /* Leaves room so the fixed buy bar never covers the end of the page. */
+  @media (width < 64rem) {
+    body:has([data-buy-bar]) {
+      padding-bottom: 5rem;
+    }
+  }
+
   html:has(dialog[open]) {
     overflow: hidden;
   }

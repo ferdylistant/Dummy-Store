@@ -27,6 +27,8 @@ Toko ini punya satu benda khas, yaitu label baju yang digantung. Motif ini yang 
 - **Hanya untuk satu CTA terpenting di halaman brand:** hero beranda dan halaman 404. Tombol fungsional seperti tambah ke keranjang tetap memakai pill biasa.
 - **Rel pakaian** di hero beranda adalah elemen utama, dan label harganya memakai bahasa bentuk yang sama.
 - **Logo dan favicon** memakai bentuk label yang sama.
+- **`PaperTag`** (`src/components/ui/paper-tag.tsx`): label kertas dengan sudut terpotong dan lubang. Dipakai untuk harga di gambar produk dan kategori di footer.
+- **Label kain:** panel `muted` dengan garis jahitan di dalamnya, untuk Detail Produk. Isinya hanya data produk yang benar.
 - **Jahitan:** garis putus-putus yang menjadi benang utuh. Dipakai untuk progres checkout dan tautan teks.
 
 ## 3. Warna

@@ -55,8 +55,8 @@ export function HomeSkeleton() {
         <Container>
           <SkeletonLine row="mb-8 h-9 lg:mb-12 lg:h-12" bar="h-7 lg:h-10" className="w-72 max-w-full" />
           <div className="grid grid-cols-2 gap-3 md:auto-rows-[18rem] md:grid-cols-4 md:gap-4">
-            {TILE_LAYOUT.map((layout) => (
-              <Skeleton key={layout} className={`min-h-60 rounded-3xl ${layout}`} />
+            {TILE_LAYOUT.map((layout, index) => (
+              <Skeleton key={index} className={`min-h-60 rounded-3xl ${layout}`} />
             ))}
           </div>
         </Container>

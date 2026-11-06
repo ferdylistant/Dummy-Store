@@ -44,7 +44,7 @@ export function ProductDetailSkeleton() {
     <SkeletonRegion label="Memuat produk">
       <Container className="py-6 lg:py-8">
         <BreadcrumbSkeleton />
-        <div className="mt-4 grid gap-6 pb-24 lg:grid-cols-2 lg:gap-12 lg:pb-0">
+        <div className="mt-4 grid gap-6 lg:grid-cols-2 lg:gap-12">
           <Skeleton className="aspect-[4/5] rounded-3xl" />
           <div>
             <SkeletonLine row="mt-1 h-10 lg:h-12" bar="h-8 lg:h-10" className="w-3/4" />
@@ -63,7 +63,10 @@ export function ProductDetailSkeleton() {
           </div>
         </div>
       </Container>
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card p-3 lg:hidden">
+      <div
+        data-buy-bar
+        className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card p-3 lg:hidden"
+      >
         <Skeleton className="h-5 w-24" />
         <Skeleton className="h-14 flex-1 rounded-full" />
       </div>

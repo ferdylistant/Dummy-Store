@@ -60,7 +60,7 @@ export default async function ProductPage(props: PageProps<'/produk/[slug]'>) {
         <section aria-labelledby="terkait" className="py-16 lg:py-28">
           <Container>
             <h2 id="terkait" className="mb-8 text-3xl font-semibold tracking-tight lg:mb-12 lg:text-5xl">
-              Produk terkait
+              Cocok dipadukan.
             </h2>
             <ul className="grid grid-cols-2 gap-x-4 gap-y-8 md:gap-x-6 lg:grid-cols-4">
               {related.map((item) => (

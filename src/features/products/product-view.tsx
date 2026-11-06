@@ -1,13 +1,15 @@
 'use client'
 
-import { Check, RotateCcw, Truck } from 'lucide-react'
+import { RotateCcw, Truck } from 'lucide-react'
 import { AnimatePresence, m } from 'motion/react'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { PaperTag } from '@/components/ui/paper-tag'
 import { QuantityStepper } from '@/components/ui/quantity-stepper'
 import { MAX_QUANTITY, useCart } from '@/features/cart/store'
-import { formatRupiah } from '@/lib/format'
+import { formatRupiah, formatRupiahShort } from '@/lib/format'
 import { FREE_SHIPPING_MIN, RETURN_DAYS } from '@/lib/pricing'
+import { siteConfig } from '@/lib/site'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/types/catalog'
 import { AddToCartButton } from './add-to-cart-button'
@@ -27,6 +29,7 @@ export function ProductView({ product }: { product: Product }) {
   const [quantity, setQuantity] = useState(1)
   const [sizeError, setSizeError] = useState(false)
   const [added, setAdded] = useState(false)
+  const [swings, setSwings] = useState(0)
   const confirmTimer = useRef<number | undefined>(undefined)
 
   useEffect(() => () => window.clearTimeout(confirmTimer.current), [])
@@ -55,7 +58,7 @@ export function ProductView({ product }: { product: Product }) {
   const buttonLabel = cannotBuy ? 'Stok Habis' : 'Tambah ke Keranjang'
 
   return (
-    <div className="grid gap-6 pb-24 lg:grid-cols-2 lg:gap-12 lg:pb-0">
+    <div className="grid gap-6 lg:grid-cols-2 lg:gap-12">
       <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-muted lg:sticky lg:top-24 lg:self-start">
         <AnimatePresence initial={false}>
           <m.div
@@ -74,6 +77,21 @@ export function ProductView({ product }: { product: Product }) {
             />
           </m.div>
         </AnimatePresence>
+
+        <m.span
+          key={swings}
+          aria-hidden="true"
+          initial={swings > 0 ? { rotate: -14 } : false}
+          animate={{ rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 160, damping: 6 }}
+          style={{ transformOrigin: '50% 0' }}
+          className="absolute top-0 right-6 z-10 drop-shadow-sm lg:right-10"
+        >
+          <span className="mx-auto block h-8 w-px bg-input lg:h-12" />
+          <PaperTag className="text-sm font-semibold tabular-nums">
+            {formatRupiahShort(product.price)}
+          </PaperTag>
+        </m.span>
       </div>
 
       <div>
@@ -100,7 +118,10 @@ export function ProductView({ product }: { product: Product }) {
                   name="warna"
                   className="peer sr-only"
                   checked={option.name === color.name}
-                  onChange={() => setColor(option)}
+                  onChange={() => {
+                    setColor(option)
+                    setSwings((value) => value + 1)
+                  }}
                 />
                 <span className="sr-only">{option.name}</span>
                 <span
@@ -201,26 +222,47 @@ export function ProductView({ product }: { product: Product }) {
           </li>
         </ul>
 
-        <section aria-labelledby="detail-produk" className="mt-6 border-t border-border pt-6">
-          <h2 id="detail-produk" className="font-semibold">
-            Detail produk
-          </h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {product.details.map((detail) => (
-              <li key={detail} className="flex gap-2">
-                <Check aria-hidden="true" className="size-5 shrink-0 text-success" />
-                {detail}
-              </li>
-            ))}
-          </ul>
+        <section aria-labelledby="detail-produk" className="mt-8 rounded-2xl bg-muted p-1.5">
+          <div className="rounded-xl border border-dashed border-input px-5 py-6">
+            <p
+              aria-hidden="true"
+              className="text-center text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase"
+            >
+              {siteConfig.name}
+            </p>
+            <h2 id="detail-produk" className="mt-1 text-center font-semibold">
+              Detail produk
+            </h2>
+            <dl className="mt-4 divide-y divide-border border-y border-border text-sm">
+              {[
+                ['Bahan', product.material],
+                ['Warna', product.colors.map((item) => item.name).join(', ')],
+                ['Ukuran', product.sizes.join(', ')],
+              ].map(([term, value]) => (
+                <div key={term} className="flex justify-between gap-6 py-2.5">
+                  <dt className="text-muted-foreground">{term}</dt>
+                  <dd className="text-right font-medium">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <ul className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              {product.details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          </div>
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card p-3 lg:hidden">
+      <div
+        data-buy-bar
+        className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card p-3 lg:hidden"
+      >
         <p className="font-semibold tabular-nums">{formatRupiah(product.price)}</p>
         <AddToCartButton
           added={added}
-          label={buttonLabel}
+          label={cannotBuy ? buttonLabel : 'Tambah'}
+          aria-label={added ? undefined : buttonLabel}
           disabled={cannotBuy}
           onClick={handleAdd}
           className="flex-1"
