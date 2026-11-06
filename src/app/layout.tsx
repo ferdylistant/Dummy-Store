@@ -1,19 +1,63 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 import type { ReactNode } from 'react'
+import { SiteFooter } from '@/components/layout/site-footer'
+import { SiteHeader } from '@/components/layout/site-header'
+import { JsonLd } from '@/components/seo/json-ld'
+import { CartDrawer } from '@/features/cart/cart-drawer'
+import { organizationJsonLd } from '@/lib/seo'
+import { siteConfig } from '@/lib/site'
 import './globals.css'
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-plus-jakarta-sans',
+})
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
   title: {
-    default: 'Modern Ecommerce',
-    template: '%s | Modern Ecommerce',
+    default: `${siteConfig.name} | ${siteConfig.tagline}`,
+    template: `%s | ${siteConfig.name}`,
   },
-  description: 'Toko online baju, celana, bandana, dan merchandise.',
+  description: siteConfig.description,
+  applicationName: siteConfig.name,
+  openGraph: {
+    type: 'website',
+    siteName: siteConfig.name,
+    locale: siteConfig.locale,
+  },
+  twitter: { card: 'summary_large_image' },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#f8fafc',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="id">
-      <body className="min-h-svh antialiased">{children}</body>
+    <html lang="id" className={plusJakartaSans.variable}>
+      <body className="flex min-h-dvh flex-col antialiased">
+        <a
+          href="#konten"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+        >
+          Lewati ke konten utama
+        </a>
+        <JsonLd data={organizationJsonLd()} />
+        <SiteHeader />
+        <main id="konten" tabIndex={-1} className="flex-1 outline-none">
+          {children}
+        </main>
+        <SiteFooter />
+        <CartDrawer />
+      </body>
     </html>
   )
 }

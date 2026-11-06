@@ -1,0 +1,78 @@
+'use client'
+
+import { ShoppingBag } from 'lucide-react'
+import Link from 'next/link'
+import { useEffect } from 'react'
+import { buttonClasses } from '@/components/ui/button'
+import { Drawer } from '@/components/ui/drawer'
+import { formatRupiah } from '@/lib/format'
+import { FREE_SHIPPING_MIN } from '@/lib/pricing'
+import { CartLineItem } from './cart-line-item'
+import { useCart } from './store'
+import { useCartLines } from './use-cart-lines'
+
+export function CartDrawer() {
+  const isOpen = useCart((state) => state.isOpen)
+  const closeCart = useCart((state) => state.closeCart)
+  const { lines, subtotal, count } = useCartLines()
+  const remaining = FREE_SHIPPING_MIN - subtotal
+
+  useEffect(() => {
+    useCart.persist.rehydrate()
+  }, [])
+
+  return (
+    <Drawer
+      open={isOpen}
+      onClose={closeCart}
+      title={count > 0 ? `Keranjang (${count})` : 'Keranjang'}
+      footer={
+        lines.length > 0 ? (
+          <>
+            <p className="mb-3 text-sm text-muted-foreground">
+              {remaining > 0
+                ? `Tambah ${formatRupiah(remaining)} lagi untuk gratis ongkir reguler.`
+                : 'Pesanan ini mendapat gratis ongkir reguler.'}
+            </p>
+            <div className="mb-4 flex items-center justify-between font-semibold">
+              <span>Subtotal</span>
+              <span className="tabular-nums">{formatRupiah(subtotal)}</span>
+            </div>
+            <div className="grid gap-2">
+              <Link href="/checkout" onClick={closeCart} className={buttonClasses({ size: 'lg' })}>
+                Lanjut ke Checkout
+              </Link>
+              <Link
+                href="/keranjang"
+                onClick={closeCart}
+                className={buttonClasses({ variant: 'outline' })}
+              >
+                Lihat Keranjang
+              </Link>
+            </div>
+          </>
+        ) : undefined
+      }
+    >
+      {lines.length > 0 ? (
+        <ul className="divide-y divide-border px-4">
+          {lines.map((line) => (
+            <CartLineItem key={line.key} line={line} onNavigate={closeCart} />
+          ))}
+        </ul>
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <ShoppingBag aria-hidden="true" className="size-10 text-muted-foreground" />
+          <p className="font-medium">Keranjang masih kosong</p>
+          <Link
+            href="/produk"
+            onClick={closeCart}
+            className={buttonClasses({ variant: 'outline' })}
+          >
+            Mulai Belanja
+          </Link>
+        </div>
+      )}
+    </Drawer>
+  )
+}
