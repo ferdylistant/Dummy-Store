@@ -1,20 +1,22 @@
 'use client'
 
 import { Check, RotateCcw, Truck } from 'lucide-react'
+import { AnimatePresence, m } from 'motion/react'
 import Link from 'next/link'
-import { useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useEffect, useRef, useState } from 'react'
 import { QuantityStepper } from '@/components/ui/quantity-stepper'
 import { MAX_QUANTITY, useCart } from '@/features/cart/store'
 import { formatRupiah } from '@/lib/format'
 import { FREE_SHIPPING_MIN, RETURN_DAYS } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/types/catalog'
+import { AddToCartButton } from './add-to-cart-button'
 import { ProductImage } from './product-image'
 import { ProductPrice } from './product-price'
 
 const ONE_SIZE = 'Satu ukuran'
+/** Long enough to read the confirmation before the cart covers the button. */
+const CONFIRM_MS = 500
 
 export function ProductView({ product }: { product: Product }) {
   const add = useCart((state) => state.add)
@@ -24,6 +26,10 @@ export function ProductView({ product }: { product: Product }) {
   const [size, setSize] = useState(hasSizes ? '' : ONE_SIZE)
   const [quantity, setQuantity] = useState(1)
   const [sizeError, setSizeError] = useState(false)
+  const [added, setAdded] = useState(false)
+  const confirmTimer = useRef<number | undefined>(undefined)
+
+  useEffect(() => () => window.clearTimeout(confirmTimer.current), [])
 
   const isSoldOut = (colorName: string, sizeName: string) =>
     product.soldOut?.includes(`${colorName}|${sizeName}`) ?? false
@@ -32,34 +38,51 @@ export function ProductView({ product }: { product: Product }) {
   const cannotBuy = selectedSoldOut || allSoldOut
 
   function handleAdd() {
+    if (added) return
     if (!size) {
       setSizeError(true)
       document.getElementById('pilih-ukuran')?.scrollIntoView({ block: 'center' })
       return
     }
     add({ productId: product.id, color: color.name, size, quantity })
-    openCart()
+    setAdded(true)
+    confirmTimer.current = window.setTimeout(() => {
+      setAdded(false)
+      openCart()
+    }, CONFIRM_MS)
   }
 
   const buttonLabel = cannotBuy ? 'Stok Habis' : 'Tambah ke Keranjang'
 
   return (
     <div className="grid gap-6 pb-24 lg:grid-cols-2 lg:gap-12 lg:pb-0">
-      <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-muted lg:sticky lg:top-24 lg:self-start">
-        <ProductImage
-          product={product}
-          color={color.hex}
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          priority
-        />
+      <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-muted lg:sticky lg:top-24 lg:self-start">
+        <AnimatePresence initial={false}>
+          <m.div
+            key={color.name}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0"
+          >
+            <ProductImage
+              product={product}
+              color={color.hex}
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              priority
+            />
+          </m.div>
+        </AnimatePresence>
       </div>
 
       <div>
-        <div className="flex flex-wrap gap-1">
-          {product.compareAtPrice && <Badge tone="promo">Diskon</Badge>}
-          {product.isNew && <Badge>Baru</Badge>}
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight lg:text-4xl">{product.name}</h1>
+        {(product.compareAtPrice || product.isNew) && (
+          <p className="text-sm font-semibold text-accent">
+            {product.compareAtPrice ? 'Harga spesial' : 'Baru'}
+          </p>
+        )}
+        <h1 className="mt-1 text-4xl font-semibold tracking-tight lg:text-5xl">{product.name}</h1>
         <ProductPrice product={product} className="mt-2 text-xl lg:text-2xl" />
         <p className="mt-4 max-w-prose leading-relaxed text-muted-foreground">
           {product.description}
@@ -100,7 +123,7 @@ export function ProductView({ product }: { product: Product }) {
               <legend className="text-sm font-medium">Ukuran</legend>
               <Link
                 href="/bantuan#ukuran"
-                className="py-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                className="py-1 text-sm font-medium text-link underline-offset-4 hover:underline"
               >
                 Panduan ukuran
               </Link>
@@ -124,7 +147,7 @@ export function ProductView({ product }: { product: Product }) {
                     />
                     <span
                       className={cn(
-                        'grid h-11 min-w-11 place-items-center rounded-lg border border-input px-3 text-sm font-medium transition-colors duration-200 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring',
+                        'grid h-11 min-w-11 place-items-center rounded-full border border-input px-4 text-sm font-medium transition-colors duration-200 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring',
                         soldOut
                           ? 'text-muted-foreground line-through opacity-50'
                           : 'peer-not-checked:hover:bg-muted',
@@ -155,14 +178,17 @@ export function ProductView({ product }: { product: Product }) {
           />
         </div>
 
-        <Button
+        <AddToCartButton
           size="lg"
+          added={added}
+          label={buttonLabel}
           disabled={cannotBuy}
           onClick={handleAdd}
           className="mt-6 hidden w-full lg:inline-flex"
-        >
-          {buttonLabel}
-        </Button>
+        />
+        <p role="status" className="sr-only">
+          {added ? `${product.name} ditambahkan ke keranjang` : ''}
+        </p>
 
         <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
           <li className="flex gap-2">
@@ -192,9 +218,13 @@ export function ProductView({ product }: { product: Product }) {
 
       <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card p-3 lg:hidden">
         <p className="font-semibold tabular-nums">{formatRupiah(product.price)}</p>
-        <Button disabled={cannotBuy} onClick={handleAdd} className="flex-1">
-          {buttonLabel}
-        </Button>
+        <AddToCartButton
+          added={added}
+          label={buttonLabel}
+          disabled={cannotBuy}
+          onClick={handleAdd}
+          className="flex-1"
+        />
       </div>
     </div>
   )

@@ -36,7 +36,7 @@ export function FilterPanel({
             <Link
               href="/produk"
               aria-current={!activeCategory ? 'page' : undefined}
-              className={cn(ROW, !activeCategory && 'font-semibold text-primary')}
+              className={cn(ROW, !activeCategory && 'font-semibold text-link')}
             >
               Semua produk
             </Link>
@@ -46,7 +46,7 @@ export function FilterPanel({
               <Link
                 href={`/kategori/${category.slug}`}
                 aria-current={activeCategory === category.slug ? 'page' : undefined}
-                className={cn(ROW, activeCategory === category.slug && 'font-semibold text-primary')}
+                className={cn(ROW, activeCategory === category.slug && 'font-semibold text-link')}
               >
                 {category.name}
               </Link>
@@ -70,7 +70,7 @@ export function FilterPanel({
                       sizes: toggleValue(filters.sizes, size),
                     })}
                     className={cn(
-                      'grid h-11 min-w-11 place-items-center rounded-lg border px-2 text-sm font-medium transition-colors duration-200',
+                      'grid h-11 min-w-11 place-items-center rounded-full border px-3 text-sm font-medium transition-colors duration-200',
                       active
                         ? 'border-primary bg-primary text-primary-foreground'
                         : 'border-input hover:bg-muted',
@@ -106,7 +106,7 @@ export function FilterPanel({
                     style={{ backgroundColor: color.hex }}
                   />
                   <span className={cn('flex-1', active && 'font-semibold')}>{color.name}</span>
-                  {active && <Check aria-hidden="true" className="size-4 text-primary" />}
+                  {active && <Check aria-hidden="true" className="size-4 text-link" />}
                 </Link>
               </li>
             )
@@ -128,7 +128,7 @@ export function FilterPanel({
                   className={ROW}
                 >
                   <span className={cn('flex-1', active && 'font-semibold')}>{range.label}</span>
-                  {active && <Check aria-hidden="true" className="size-4 text-primary" />}
+                  {active && <Check aria-hidden="true" className="size-4 text-link" />}
                 </Link>
               </li>
             )

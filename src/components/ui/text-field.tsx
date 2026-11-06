@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 
 const INPUT_CLASSES =
-  'w-full rounded-lg border border-input bg-card px-3 text-base text-foreground placeholder:text-muted-foreground aria-invalid:border-destructive'
+  'w-full rounded-xl border border-input bg-card px-3 text-base text-foreground placeholder:text-muted-foreground aria-invalid:border-destructive'
 
 interface FieldProps {
   label: string

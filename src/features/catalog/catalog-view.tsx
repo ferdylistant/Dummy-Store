@@ -9,7 +9,7 @@ import { itemListJsonLd, type BreadcrumbItem } from '@/lib/seo'
 import { cn } from '@/lib/utils'
 import { getCategories, getFacets, getProducts } from '@/services/products'
 import type { CategorySlug } from '@/types/catalog'
-import { FilterDrawer, SortSelect } from './catalog-controls'
+import { FilterDrawer, ResultsFade, SortSelect } from './catalog-controls'
 import { FilterPanel } from './filter-panel'
 import {
   catalogHref,
@@ -75,7 +75,7 @@ export async function CatalogView({
       <JsonLd data={itemListJsonLd(result.items)} />
       <Breadcrumbs items={breadcrumbs} />
       <header className="mt-4 mb-6 max-w-prose">
-        <h1 className="text-3xl font-semibold tracking-tight lg:text-4xl">
+        <h1 className="text-4xl font-semibold tracking-tight lg:text-5xl">
           {filters.q ? `Hasil untuk "${filters.q}"` : title}
         </h1>
         <p className="mt-2 leading-relaxed text-muted-foreground">{intro}</p>
@@ -129,7 +129,7 @@ export async function CatalogView({
                 <Link
                   href={basePath}
                   scroll={false}
-                  className="inline-flex min-h-9 items-center px-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  className="inline-flex min-h-9 items-center px-2 text-sm font-medium text-link underline-offset-4 hover:underline"
                 >
                   Hapus semua
                 </Link>
@@ -137,26 +137,28 @@ export async function CatalogView({
             </ul>
           )}
 
-          {result.items.length > 0 ? (
-            <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 xl:grid-cols-4">
-              {result.items.map((product, index) => (
-                <li key={product.id}>
-                  <ProductCard product={product} priority={index < 4} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card px-6 py-16 text-center">
-              <SearchX aria-hidden="true" className="size-10 text-muted-foreground" />
-              <h2 className="text-lg font-semibold">Produk tidak ditemukan</h2>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Coba kata kunci lain atau hapus beberapa filter.
-              </p>
-              <Link href={basePath} className={buttonClasses({ variant: 'outline' })}>
-                Hapus Filter
-              </Link>
-            </div>
-          )}
+          <ResultsFade signature={catalogHref(basePath, filters, { page: filters.page })}>
+            {result.items.length > 0 ? (
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-3 md:gap-x-6 xl:grid-cols-4">
+                {result.items.map((product, index) => (
+                  <li key={product.id}>
+                    <ProductCard product={product} priority={index < 4} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card px-6 py-16 text-center">
+                <SearchX aria-hidden="true" className="size-10 text-muted-foreground" />
+                <h2 className="text-lg font-semibold">Produk tidak ditemukan</h2>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Coba kata kunci lain atau hapus beberapa filter.
+                </p>
+                <Link href={basePath} className={buttonClasses({ variant: 'outline' })}>
+                  Hapus Filter
+                </Link>
+              </div>
+            )}
+          </ResultsFade>
 
           {result.pageCount > 1 && (
             <nav aria-label="Halaman produk" className="mt-8">
@@ -168,7 +170,7 @@ export async function CatalogView({
                       aria-current={page === result.page ? 'page' : undefined}
                       aria-label={`Halaman ${page}`}
                       className={cn(
-                        'grid size-11 place-items-center rounded-lg border text-sm font-medium',
+                        'grid size-11 place-items-center rounded-full border text-sm font-medium',
                         page === result.page
                           ? 'border-primary bg-primary text-primary-foreground'
                           : 'border-input hover:bg-muted',

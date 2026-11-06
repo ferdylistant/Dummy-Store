@@ -1,6 +1,7 @@
 'use client'
 
 import { ShoppingBag } from 'lucide-react'
+import { AnimatePresence } from 'motion/react'
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { buttonClasses } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Drawer } from '@/components/ui/drawer'
 import { formatRupiah } from '@/lib/format'
 import { FREE_SHIPPING_MIN } from '@/lib/pricing'
 import { CartLineItem } from './cart-line-item'
+import { RemovedNotice } from './removed-notice'
 import { useCart } from './store'
 import { useCartLines } from './use-cart-lines'
 
@@ -54,11 +56,14 @@ export function CartDrawer() {
         ) : undefined
       }
     >
+      <RemovedNotice className="m-4 mb-0" />
       {lines.length > 0 ? (
-        <ul className="divide-y divide-border px-4">
-          {lines.map((line) => (
-            <CartLineItem key={line.key} line={line} onNavigate={closeCart} />
-          ))}
+        <ul className="relative divide-y divide-border px-4">
+          <AnimatePresence initial={false} mode="popLayout">
+            {lines.map((line) => (
+              <CartLineItem key={line.key} line={line} onNavigate={closeCart} />
+            ))}
+          </AnimatePresence>
         </ul>
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">

@@ -15,12 +15,12 @@ export default function Image() {
         flexDirection: 'column',
         justifyContent: 'center',
         padding: 72,
-        color: '#f8fafc',
-        backgroundColor: '#1e293b',
+        color: '#ffffff',
+        backgroundColor: '#1d1d1f',
       }}
     >
       <div style={{ display: 'flex', fontSize: 92, fontWeight: 700 }}>{siteConfig.name}</div>
-      <div style={{ display: 'flex', marginTop: 20, fontSize: 42, color: '#cbd5e1' }}>
+      <div style={{ display: 'flex', marginTop: 20, fontSize: 42, color: '#d2d2d7' }}>
         {siteConfig.tagline}
       </div>
     </div>,

@@ -25,7 +25,7 @@ interface ButtonStyle {
 /** Shared styles, so links can look like buttons. */
 export function buttonClasses({ variant = 'primary', size = 'md', className }: ButtonStyle = {}) {
   return cn(
-    'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg font-semibold transition-colors duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50',
+    'inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full font-semibold transition-colors duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50',
     VARIANTS[variant],
     SIZES[size],
     className,

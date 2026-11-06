@@ -18,7 +18,7 @@ export function QuantityStepper({
     <div
       role="group"
       aria-label={label}
-      className="inline-flex items-center rounded-lg border border-input"
+      className="inline-flex items-center rounded-full border border-input"
     >
       <Button
         variant="ghost"

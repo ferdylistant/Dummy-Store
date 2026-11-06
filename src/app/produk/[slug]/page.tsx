@@ -60,12 +60,12 @@ export default async function ProductPage(props: PageProps<'/produk/[slug]'>) {
       </Container>
 
       {related.length > 0 && (
-        <section aria-labelledby="terkait" className="bg-card py-12 md:py-16">
+        <section aria-labelledby="terkait" className="py-16 lg:py-28">
           <Container>
-            <h2 id="terkait" className="mb-8 text-2xl font-semibold tracking-tight lg:text-3xl">
+            <h2 id="terkait" className="mb-8 text-3xl font-semibold tracking-tight lg:mb-12 lg:text-5xl">
               Produk terkait
             </h2>
-            <ul className="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-8 md:gap-x-6 lg:grid-cols-4">
               {related.map((item) => (
                 <li key={item.id}>
                   <ProductCard product={item} />

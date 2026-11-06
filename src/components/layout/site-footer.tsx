@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { Container } from '@/components/ui/container'
 import { footerNavigation, siteConfig } from '@/lib/site'
+import { Logo } from './logo'
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-border bg-card">
+    <footer className="mt-auto bg-muted">
       <Container className="grid grid-cols-2 gap-x-6 gap-y-10 py-12 md:grid-cols-3 lg:grid-cols-[2fr_1fr_1fr_1fr] lg:py-16">
         <div className="col-span-2 md:col-span-3 lg:col-span-1">
-          <Link href="/" className="text-lg font-bold tracking-tight">
+          <Link href="/" className="inline-flex items-center gap-2 font-semibold tracking-tight">
+            <Logo />
             {siteConfig.name}
           </Link>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -15,7 +17,7 @@ export function SiteFooter() {
           </p>
           <a
             href={`mailto:${siteConfig.email}`}
-            className="mt-3 inline-block py-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className="mt-2 inline-block py-1 text-sm text-link underline-offset-4 hover:underline"
           >
             {siteConfig.email}
           </a>
@@ -38,11 +40,11 @@ export function SiteFooter() {
           </nav>
         ))}
       </Container>
-      <div className="border-t border-border">
-        <Container className="py-4 text-sm text-muted-foreground">
+      <Container className="pb-8 text-xs text-muted-foreground">
+        <p className="border-t border-border pt-4">
           &copy; {new Date().getFullYear()} {siteConfig.name}. Semua hak dilindungi.
-        </Container>
-      </div>
+        </p>
+      </Container>
     </footer>
   )
 }

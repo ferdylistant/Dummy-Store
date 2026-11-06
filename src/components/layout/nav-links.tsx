@@ -13,8 +13,8 @@ export function NavLinks() {
   const pathname = usePathname()
 
   return (
-    <nav aria-label="Menu utama" className="ml-4 hidden lg:block">
-      <ul className="flex items-center gap-1">
+    <nav aria-label="Menu utama" className="mx-auto hidden lg:block">
+      <ul className="flex items-center gap-2">
         {mainNavigation.map((item) => {
           const active = isActivePath(pathname, item.href)
           return (
@@ -23,8 +23,8 @@ export function NavLinks() {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'inline-flex h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors duration-200 hover:bg-muted',
-                  active ? 'text-primary' : 'text-foreground',
+                  'inline-flex h-11 items-center px-3 text-sm transition-colors duration-200 hover:text-foreground',
+                  active ? 'font-medium text-foreground' : 'text-muted-foreground',
                 )}
               >
                 {item.label}

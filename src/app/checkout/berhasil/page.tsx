@@ -16,7 +16,7 @@ export default async function CheckoutSuccessPage(props: PageProps<'/checkout/be
   return (
     <Container className="flex flex-col items-center py-16 text-center lg:py-24">
       <CircleCheck aria-hidden="true" className="size-14 text-success" />
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight lg:text-4xl">Pesanan dibuat</h1>
+      <h1 className="mt-4 text-4xl font-semibold tracking-tight lg:text-5xl">Pesanan dibuat</h1>
       {orderNumber && (
         <p className="mt-3 font-medium">
           Nomor pesanan: <span className="tabular-nums">{orderNumber}</span>

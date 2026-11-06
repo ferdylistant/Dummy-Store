@@ -25,8 +25,8 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         flexDirection: 'column',
         justifyContent: 'space-between',
         padding: 72,
-        color: '#1e293b',
-        backgroundColor: '#f8fafc',
+        color: '#1d1d1f',
+        backgroundColor: '#ffffff',
       }}
     >
       <div style={{ display: 'flex', fontSize: 34, fontWeight: 700 }}>{siteConfig.name}</div>
@@ -34,7 +34,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         <div style={{ display: 'flex', fontSize: 76, fontWeight: 700 }}>
           {product?.name ?? siteConfig.name}
         </div>
-        <div style={{ display: 'flex', marginTop: 20, fontSize: 44, color: '#2563eb' }}>
+        <div style={{ display: 'flex', marginTop: 20, fontSize: 44, color: '#0066cc' }}>
           {product ? formatRupiah(product.price) : siteConfig.tagline}
         </div>
       </div>
@@ -46,7 +46,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
               width: 56,
               height: 56,
               borderRadius: 28,
-              border: '2px solid #cbd5e1',
+              border: '2px solid #d2d2d7',
               backgroundColor: color.hex,
             }}
           />

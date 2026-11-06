@@ -11,70 +11,82 @@ Sumber desain utama project ini. Baca file ini sebelum menulis atau mengubah UI.
 | Aspek | Keputusan |
 | --- | --- |
 | Produk | Toko online baju, celana, bandana, dan merchandise |
-| Gaya | SaaS clean, berbasis Minimalism & Swiss Style |
-| Karakter | Bersih, lega, fungsional, kontras tinggi, berbasis grid |
-| Prinsip utama | UI netral dan foto produk yang memberi warna |
-| Dial generator | Variance 3, Motion 3, Density 5 |
+| Gaya | Bersih dan premium seperti situs produk Apple, berbasis Minimalism & Swiss Style |
+| Karakter | Putih, lega, tipografi besar, netral, tanpa bingkai dan gradien |
+| Keunikan | Motif hang tag dan rel pakaian (lihat bagian 2) |
+| Prinsip utama | Antarmuka diam dan produk yang bicara. Warna hanya datang dari produk |
+| Dial generator | Variance 3, Motion 3, Density 3 |
 
-Sumber: UI UX Pro Max. Gaya dan dial berasal dari generator `--design-system`. Palet memakai profil "SaaS (General)", dan tipografi memakai "Friendly SaaS". Palet hijau-mint bawaan generator tidak dipakai karena tidak sesuai arah SaaS.
+Gaya ini hanya inspirasi. Jangan memakai logo, nama, ikon, atau aset Apple.
 
-## 2. Warna
+## 2. Ciri khas: hang tag
+
+Toko ini punya satu benda khas, yaitu label baju yang digantung. Motif ini yang membuat tampilan tidak generik, jadi pakai dengan hemat.
+
+- **`HangTagLink`** (`src/components/ui/hang-tag-link.tsx`): CTA utama berbentuk label berlubang dengan tali, yang berayun saat di-hover dan ditekan.
+- **Hanya untuk satu CTA terpenting di halaman brand:** hero beranda dan halaman 404. Tombol fungsional seperti tambah ke keranjang tetap memakai pill biasa.
+- **Rel pakaian** di hero beranda adalah elemen utama, dan label harganya memakai bahasa bentuk yang sama.
+- **Logo dan favicon** memakai bentuk label yang sama.
+
+## 3. Warna
 
 Selalu pakai token semantik. Jangan menulis hex atau warna bawaan Tailwind seperti `bg-blue-600` di komponen.
 
 | Token | Terang | Gelap | Kegunaan |
 | --- | --- | --- | --- |
-| `background` | `#F8FAFC` | `#0F172A` | Latar halaman |
-| `foreground` | `#1E293B` | `#F1F5F9` | Teks utama |
-| `card` | `#FFFFFF` | `#1E293B` | Permukaan kartu |
-| `card-foreground` | `#1E293B` | `#F1F5F9` | Teks di kartu |
-| `popover` | `#FFFFFF` | `#1E293B` | Dropdown, dialog |
-| `popover-foreground` | `#1E293B` | `#F1F5F9` | Teks di popover |
-| `primary` | `#2563EB` | `#60A5FA` | Aksi utama, link |
-| `primary-hover` | `#1D4ED8` | `#93C5FD` | Hover aksi utama |
-| `primary-foreground` | `#FFFFFF` | `#0F172A` | Teks di atas primary |
-| `secondary` | `#E9EFF8` | `#334155` | Aksi sekunder |
-| `secondary-foreground` | `#1E293B` | `#F1F5F9` | Teks di atas secondary |
-| `muted` | `#E9EFF8` | `#334155` | Latar redup, skeleton |
-| `muted-foreground` | `#475569` | `#CBD5E1` | Teks pendukung |
-| `accent` | `#EA580C` | `#FB923C` | Promo dan diskon saja |
-| `accent-foreground` | `#000000` | `#000000` | Teks di atas accent |
-| `destructive` | `#DC2626` | `#F87171` | Error, hapus |
-| `destructive-foreground` | `#FFFFFF` | `#0F172A` | Teks di atas destructive |
-| `success` | `#15803D` | `#4ADE80` | Berhasil, stok tersedia |
-| `success-foreground` | `#FFFFFF` | `#0F172A` | Teks di atas success |
-| `warning` | `#B45309` | `#FBBF24` | Stok menipis |
-| `warning-foreground` | `#FFFFFF` | `#0F172A` | Teks di atas warning |
-| `border` | `#E2E8F0` | `#334155` | Garis dekoratif |
-| `input` | `#64748B` | `#94A3B8` | Garis field form |
-| `ring` | `#2563EB` | `#60A5FA` | Focus ring |
+| `background` | `#FFFFFF` | `#000000` | Latar halaman |
+| `foreground` | `#1D1D1F` | `#F5F5F7` | Teks utama |
+| `card` | `#FFFFFF` | `#1C1C1E` | Permukaan panel |
+| `card-foreground` | `#1D1D1F` | `#F5F5F7` | Teks di panel |
+| `popover` | `#FFFFFF` | `#1C1C1E` | Dropdown, dialog |
+| `popover-foreground` | `#1D1D1F` | `#F5F5F7` | Teks di popover |
+| `primary` | `#1D1D1F` | `#F5F5F7` | Aksi utama |
+| `primary-hover` | `#000000` | `#FFFFFF` | Hover aksi utama |
+| `primary-foreground` | `#FFFFFF` | `#1D1D1F` | Teks di atas primary |
+| `secondary` | `#F5F5F7` | `#2C2C2E` | Aksi sekunder |
+| `secondary-foreground` | `#1D1D1F` | `#F5F5F7` | Teks di atas secondary |
+| `muted` | `#F5F5F7` | `#1C1C1E` | Tile produk, footer, skeleton |
+| `muted-foreground` | `#6E6E73` | `#A1A1A6` | Teks pendukung |
+| `link` | `#0066CC` | `#2997FF` | Tautan teks, status aktif |
+| `accent` | `#B64400` | `#FF9F4A` | Teks label promo, "Baru", "Hemat" |
+| `accent-foreground` | `#FFFFFF` | `#000000` | Teks di atas accent |
+| `destructive` | `#D70015` | `#FF6961` | Error, hapus |
+| `destructive-foreground` | `#FFFFFF` | `#000000` | Teks di atas destructive |
+| `success` | `#1F7A35` | `#30D158` | Berhasil |
+| `success-foreground` | `#FFFFFF` | `#000000` | Teks di atas success |
+| `warning` | `#9A5B00` | `#FFD60A` | Stok menipis |
+| `warning-foreground` | `#FFFFFF` | `#000000` | Teks di atas warning |
+| `border` | `#E5E5EA` | `#38383A` | Garis tipis dekoratif |
+| `input` | `#86868B` | `#86868B` | Garis field form |
+| `ring` | `#0066CC` | `#2997FF` | Focus ring |
 
 Aturan penggunaan:
 
 - Satu layar hanya punya satu aksi utama `primary`.
-- `accent` hanya sebagai latar badge promo. Teks di atasnya wajib `accent-foreground` (hitam), karena teks putih hanya 3,56:1 dan gagal WCAG.
-- `border` hanya untuk pemisah dekoratif. Batas field form wajib `input` agar kontrasnya minimal 3:1.
+- Label produk memakai teks `accent` kecil di atas nama produk, bukan badge di atas gambar.
+- `border` hanya untuk pemisah. Batas field form wajib `input` agar kontrasnya minimal 3:1.
 - Status tidak boleh hanya dibedakan warna. Tambahkan teks atau ikon.
 
-Kontras teks dan batas field sudah diuji pada 2026-11-06 dan memenuhi WCAG AA di kedua tema. Kontras terendah untuk teks adalah 4,83:1 (`destructive` terang).
+Kontras diuji pada 2026-11-06 dan memenuhi WCAG AA, termasuk di atas `muted`. Terendah untuk teks adalah 4,66:1 (`muted-foreground` di atas `muted`).
 
-Mode gelap: token sudah tersedia lewat class `.dark`, tetapi tombol pengalihnya belum dibuat, jadi website tampil terang. Varian `dark:` dikunci ke class `.dark`, bukan setelan OS.
+Mode gelap: token tersedia lewat class `.dark`, tetapi tombol pengalihnya belum dibuat, jadi website tampil terang. Varian `dark:` dikunci ke class `.dark`, bukan setelan OS.
 
-## 3. Tipografi
+## 4. Tipografi
 
-- **Font:** Plus Jakarta Sans untuk judul dan isi, dimuat dengan `next/font/google` di `src/app/layout.tsx`. Jangan memakai tag `<link>` font.
-- **Bobot:** 400 isi, 500 label, 600 judul dan tombol, 700 judul hero.
+- **Font:** Inter untuk judul dan isi, dimuat dengan `next/font/google` di `src/app/layout.tsx`. Jangan memakai tag `<link>` font.
+- **Bobot:** 400 isi, 500 label, 600 judul dan tombol.
+- Judul besar selalu `tracking-tight`, karena tipografi adalah elemen visual utama di gaya ini.
 
 | Peran | Mobile | Desktop (`lg`) | Kelas |
 | --- | --- | --- | --- |
-| Display (hero) | 36px | 48px | `text-4xl lg:text-5xl font-bold tracking-tight` |
-| H1 halaman | 30px | 36px | `text-3xl lg:text-4xl font-semibold tracking-tight` |
-| H2 section | 24px | 30px | `text-2xl lg:text-3xl font-semibold tracking-tight` |
+| Display (hero) | 48px | 72px | `text-5xl lg:text-7xl font-semibold tracking-tight` |
+| H1 halaman | 36px | 48px | `text-4xl lg:text-5xl font-semibold tracking-tight` |
+| H2 section | 30px | 48px | `text-3xl lg:text-5xl font-semibold tracking-tight` |
 | H3 kartu | 18px | 20px | `text-lg lg:text-xl font-semibold` |
 | Isi | 16px | 16px | `text-base leading-relaxed` |
 | Pendukung | 14px | 14px | `text-sm text-muted-foreground` |
 | Keterangan | 12px | 12px | `text-xs`, hanya untuk metadata singkat |
-| Harga | 16-24px | 16-24px | `font-semibold tabular-nums` |
+| Harga | 14-24px | 14-24px | `tabular-nums` |
 
 Aturan:
 
@@ -84,38 +96,39 @@ Aturan:
 - Urutan heading tidak boleh melompat, dan tiap halaman hanya punya satu `h1`.
 - Harga ditulis dengan format Rupiah `Intl.NumberFormat('id-ID')`.
 
-## 4. Spacing
+## 5. Spacing
 
-Memakai kelipatan 4px sesuai skala Tailwind. Hindari nilai arbitrer seperti `p-[13px]`.
+Memakai kelipatan 4px sesuai skala Tailwind. Hindari nilai arbitrer seperti `p-[13px]`. Ruang kosong adalah bagian dari desain, jadi jarak antar section sengaja besar.
 
 | Level | Nilai | Kelas |
 | --- | --- | --- |
 | Rapat, ikon dan teks | 8px | `gap-2` |
 | Dalam komponen | 12-16px | `gap-3`, `p-4` |
-| Antar elemen dalam kartu | 16-24px | `gap-4`, `p-6` |
-| Judul section ke isi | 32px | `mb-8` |
-| Antar section | 48 / 64 / 96px | `py-12 md:py-16 lg:py-24` |
+| Dalam tile | 24-32px | `p-6 lg:p-8` |
+| Judul section ke isi | 32-48px | `mb-8 lg:mb-12` |
+| Antar section | 64 / 112px | `py-16 lg:py-28` |
 
-## 5. Radius
+## 6. Radius
 
 | Token | Nilai | Kegunaan |
 | --- | --- | --- |
-| `rounded-sm` | 4px | Checkbox, elemen kecil |
-| `rounded-md` | 6px | Badge, tag |
-| `rounded-lg` | 8px | Tombol, input, dropdown |
-| `rounded-xl` | 12px | Kartu, gambar produk |
-| `rounded-2xl` | 16px | Dialog, panel besar |
-| `rounded-full` | Penuh | Avatar, tombol ikon bulat, swatch warna |
+| `rounded-sm` | 8px | Elemen kecil |
+| `rounded-lg` | 12px | Dropdown |
+| `rounded-xl` | 16px | Input, panel |
+| `rounded-2xl` | 20px | Tile produk |
+| `rounded-3xl` | 28px | Tile kategori, gambar detail produk |
+| `rounded-full` | Penuh | Tombol, swatch warna |
 
-Semua nilai diturunkan dari `--radius` (8px) di `globals.css`.
+Semua nilai diturunkan dari `--radius` (12px) di `globals.css`.
 
-## 6. Grid dan layout
+## 7. Grid dan layout
 
 - **Container:** `mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8` (lebar maksimal 1280px).
 - **Teks panjang dan form:** `max-w-prose` atau `max-w-xl`.
 
 | Elemen | Mobile | `md` | `lg` | `xl` |
 | --- | --- | --- | --- | --- |
+| Tile kategori (bento) | 2 kolom | 4 kolom, tile pertama 2 x 2 | Sama | Sama |
 | Grid produk katalog | 2 kolom | 3 kolom | 3 kolom + sidebar filter | 4 kolom |
 | Grid produk beranda | 2 kolom | 2 kolom | 4 kolom | 4 kolom |
 | Celah grid produk | 16px | 24px | 24px | 24px |
@@ -132,9 +145,15 @@ Lapisan z-index:
 | `z-40` | Drawer dan overlay |
 | `z-50` | Dialog, toast |
 
-## 7. Tombol
+## 8. Header
 
-Dasar: `inline-flex items-center justify-center gap-2 rounded-lg font-semibold cursor-pointer transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed`.
+- Tembus pandang dengan blur: `bg-background/80 backdrop-blur-xl`, tinggi 56px.
+- Menu berada di tengah pada desktop. Pencarian dibuka dari ikon, bukan kotak yang selalu tampil.
+- Blur hanya dipakai di header dan latar dialog.
+
+## 9. Tombol
+
+Dasar: `inline-flex items-center justify-center gap-2 rounded-full font-semibold cursor-pointer transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed`.
 
 | Varian | Kelas | Kegunaan |
 | --- | --- | --- |
@@ -143,7 +162,7 @@ Dasar: `inline-flex items-center justify-center gap-2 rounded-lg font-semibold c
 | Outline | `border border-input bg-transparent hover:bg-muted` | Filter, aksi netral |
 | Ghost | `bg-transparent hover:bg-muted` | Navigasi, ikon |
 | Destructive | `bg-destructive text-destructive-foreground hover:bg-destructive/90` | Hapus |
-| Link | `text-primary underline-offset-4 hover:underline` | Tautan dalam teks |
+| Tautan | `text-link hover:underline` dengan ikon chevron | Aksi sekunder di hero dan section |
 
 | Ukuran | Tinggi | Kelas |
 | --- | --- | --- |
@@ -155,29 +174,25 @@ Dasar: `inline-flex items-center justify-center gap-2 rounded-lg font-semibold c
 Aturan:
 
 - Target sentuh di mobile minimal 44 x 44px, dengan jarak antar target minimal 8px.
-- Saat proses berjalan, tombol dinonaktifkan dan menampilkan spinner, dengan lebar tetap.
+- Saat proses berjalan, tombol dinonaktifkan dan menampilkan status, dengan lebar tetap.
 - Efek tekan tidak boleh menggeser layout. Gunakan `active:scale-[0.98]` paling besar.
-- Aksi `accent` tidak dipakai untuk tombol.
 
-## 8. Kartu
+## 10. Kartu dan tile
 
-Dasar: `rounded-xl border border-border bg-card text-card-foreground`.
-
-- **Kartu umum:** padding `p-4` di mobile dan `p-6` mulai `md`, tanpa bayangan.
-- **Kartu produk:**
+- **Kartu produk:** tanpa bingkai dan bayangan.
+  - Gambar berada di tile `rounded-2xl bg-muted` rasio 4:5 (`aspect-[4/5]`), memakai `next/image` untuk foto.
   - Seluruh kartu adalah satu link ke detail produk.
-  - Gambar rasio 4:5 (`aspect-[4/5]`) dengan `object-cover`, memakai `next/image`.
-  - Urutan isi: nama (maksimal 2 baris), harga, lalu badge bila ada.
-  - Hover: `hover:shadow-md` dan gambar `scale-[1.03]`, durasi 200ms.
-  - Di perangkat sentuh, informasi tidak boleh hanya muncul saat hover.
-- **Badge:** `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold`.
+  - Urutan: label `accent`, nama (maksimal 2 baris), harga, titik warna.
+  - Hover hanya gambar `scale-[1.03]`, durasi 200ms.
+- **Tile kategori:** `rounded-3xl bg-muted p-6 lg:p-8`, dengan judul di atas dan gambar di bawah.
+- **Panel keranjang dan checkout:** `rounded-xl border border-border bg-card`, padding `p-4` lalu `md:p-6`.
 - **Skeleton:** `animate-pulse rounded-xl bg-muted` dengan ukuran sama seperti konten akhir.
 
-Kedalaman memakai `shadow-sm`, `shadow-md`, dan `shadow-lg` saja, secukupnya. Hindari glassmorphism dan gradien dekoratif.
+Hindari glassmorphism, gradien dekoratif, dan bayangan pada kartu.
 
-## 9. Form
+## 11. Form
 
-- **Input:** `h-11 w-full rounded-lg border border-input bg-card px-3 text-base placeholder:text-muted-foreground`.
+- **Input:** `h-11 w-full rounded-xl border border-input bg-card px-3 text-base placeholder:text-muted-foreground`.
 - **Label:** selalu terlihat di atas field, `text-sm font-medium`. Placeholder bukan pengganti label.
 - **Wajib diisi:** tandai dengan `*` dan `required`.
 - **Bantuan:** `text-sm text-muted-foreground` di bawah field.
@@ -185,9 +200,9 @@ Kedalaman memakai `shadow-sm`, `shadow-md`, dan `shadow-lg` saja, secukupnya. Hi
 - **Validasi:** saat `blur`, bukan saat mengetik.
 - **Setelah submit gagal:** pindahkan fokus ke field pertama yang salah, atau ke ringkasan error jika errornya banyak.
 - **Mobile:** gunakan `type`, `inputMode`, dan `autoComplete` yang tepat, misalnya `tel`, `email`, dan `postal-code`.
-- **Pengelompokan:** field terkait memakai `fieldset` dan `legend`. Checkout multi-langkah menampilkan indikator langkah dan tombol kembali.
+- **Pengelompokan:** field terkait memakai `fieldset` dan `legend`.
 
-## 10. Responsive
+## 12. Responsive
 
 Memakai breakpoint bawaan Tailwind dan selalu mobile-first: tulis gaya mobile dulu, lalu tambahkan `md:` dan seterusnya.
 
@@ -209,26 +224,25 @@ Aturan:
 - Filter produk: drawer di bawah `lg`, sidebar mulai `lg`.
 - CTA detail produk: bar menempel di bawah pada mobile, dan konten diberi ruang agar tidak tertutup.
 - Elemen sticky tidak boleh menutupi elemen yang sedang difokus.
-- Tabel lebar berubah menjadi daftar kartu di mobile.
 - Wajib dicek di 360, 768, 1024, dan 1440 px.
 
-## 11. Animasi dan ikon
+## 13. Animasi dan ikon
 
 | Peran | Durasi |
 | --- | --- |
 | Hover, tekan | 150-200ms |
 | Dropdown, drawer masuk | 200-300ms |
 | Elemen keluar | 60-70% durasi masuk |
-| Reveal saat scroll | 300-400ms, geser 8-16px |
 
-- **Library:** `motion` yang sudah terpasang, diimpor dari `motion/react`, hanya di Client Component. Saran GSAP dari generator tidak dipakai agar tidak menambah dependency.
+- **Library:** `motion`, diimpor dari `motion/react`, hanya di Client Component. Pakai `m`, bukan `motion`, karena fiturnya dimuat sekali oleh `LazyMotion` di `src/components/motion-provider.tsx`.
 - Animasikan `transform` dan `opacity` saja, maksimal 1-2 elemen kunci per tampilan.
 - Wajib menghormati `prefers-reduced-motion`.
 - Konten penting untuk SEO tidak boleh tersembunyi menunggu animasi.
-- **Ikon:** `lucide-react` (dipasang saat pertama dibutuhkan), satu set saja, ukuran 16, 20, atau 24px, ketebalan garis konsisten. Jangan memakai emoji sebagai ikon.
+- Hindari animasi yang berjalan terus-menerus seperti marquee.
+- **Ikon:** `lucide-react`, satu set saja, ukuran 16, 20, atau 24px. Jangan memakai emoji sebagai ikon.
 - Ikon dekoratif memakai `aria-hidden="true"`. Tombol ikon wajib punya nama aksesibel.
 
-## 12. Aturan komponen dari 21st
+## 14. Aturan komponen dari 21st
 
 Komponen dari 21st wajib disesuaikan sebelum dipakai:
 
@@ -240,11 +254,7 @@ Komponen dari 21st wajib disesuaikan sebelum dipakai:
 6. Cek label, keyboard, fokus, dan `prefers-reduced-motion`.
 7. Cek tampilan di 360 px dan pastikan tidak ada scroll horizontal.
 
-## 13. Struktur halaman utama
-
-Berdasarkan pola "Feature-Rich Showcase", disesuaikan untuk toko: Hero dengan satu pesan dan CTA, kategori, produk unggulan, keunggulan toko, lalu CTA penutup.
-
-## 14. Checklist sebelum selesai
+## 15. Checklist sebelum selesai
 
 - [ ] Tidak ada hex atau warna bawaan Tailwind di komponen
 - [ ] Tidak ada emoji sebagai ikon

@@ -2,9 +2,33 @@
 
 import { SlidersHorizontal } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Drawer } from '@/components/ui/drawer'
+
+/**
+ * Fades results after a filter change. It animates only on change, so the
+ * server-rendered list is never hidden on first load.
+ */
+export function ResultsFade({ signature, children }: { signature: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const previous = useRef(signature)
+
+  useEffect(() => {
+    if (previous.current === signature) return
+    previous.current = signature
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    ref.current?.animate(
+      [
+        { opacity: 0.4, transform: 'translateY(6px)' },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: 200, easing: 'ease-out' },
+    )
+  }, [signature])
+
+  return <div ref={ref}>{children}</div>
+}
 
 export function SortSelect({
   value,
@@ -27,7 +51,7 @@ export function SortSelect({
           const option = options.find((item) => item.value === event.target.value)
           if (option) router.push(option.href, { scroll: false })
         }}
-        className="h-11 cursor-pointer rounded-lg border border-input bg-card px-2 text-sm"
+        className="h-11 cursor-pointer rounded-full border border-input bg-card px-3 text-sm"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

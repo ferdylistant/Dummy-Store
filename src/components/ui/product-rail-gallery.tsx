@@ -56,6 +56,8 @@ export interface ClothingRailHeroProps extends React.ComponentProps<"section"> {
   onOpenChange?: (index: number | null) => void;
   /** Extra control in the detail view, such as a link to the product page. */
   detailAction?: (item: RailGarment) => React.ReactNode;
+  /** Piece that faces the front at rest, so the rail opens on a real garment. */
+  defaultActive?: number;
 }
 
 const VB_W = 200;
@@ -544,6 +546,7 @@ export function ClothingRailHero({
   labels = DEFAULT_LABELS,
   onOpenChange,
   detailAction,
+  defaultActive,
   className,
   ...rest
 }: ClothingRailHeroProps) {
@@ -561,8 +564,8 @@ export function ClothingRailHero({
   const tags = React.useRef([] as (HTMLSpanElement | null)[]);
   const sim = React.useRef(emptySim());
   const [size, setSize] = React.useState({ width: 0, h: 300, carousel: false });
-  const [active, setActive] = React.useState(null as number | null);
-  const [focusIndex, setFocusIndex] = React.useState(0);
+  const [active, setActive] = React.useState((defaultActive ?? null) as number | null);
+  const [focusIndex, setFocusIndex] = React.useState(defaultActive ?? 0);
   const [openIndex, setOpenIndex] = React.useState(null as number | null);
   const [reduced, setReduced] = React.useState(false);
   const [playing, setPlaying] = React.useState(autoplay);
@@ -571,7 +574,7 @@ export function ClothingRailHero({
   const pendingOpen = React.useRef(-1);
   const pointer = React.useRef({ id: -1, index: -1, x: 0, y: 0, t: 0, moved: false, kind: "", swipe: 0, lastX: 0, lastT: 0, v: 0 });
   const sideWidths = React.useMemo(() => items.map((item) => (item.image ? (item.sideImage ? 0.3 : 0.4) : SIDE[item.kind ?? "tee"].width)), [items]);
-  const live = React.useRef({ active: null as number | null, size, reduced, count, openIndex: null as number | null, carouselIndex: 0, sideWidths });
+  const live = React.useRef({ active: null as number | null, size, reduced, count, openIndex: null as number | null, carouselIndex: defaultActive ?? 0, sideWidths });
   live.current = { ...live.current, active, size, reduced, count, openIndex, sideWidths };
 
   const carouselIndex = size.carousel ? (active ?? live.current.carouselIndex) : null;
@@ -940,11 +943,10 @@ export function ClothingRailHero({
       className={`relative isolate w-full overflow-hidden bg-background text-foreground ${className ?? ""}`}
     >
       <Defs uid={uid} />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10" style={{ background: "radial-gradient(120% 70% at 18% 0%, color-mix(in oklab, var(--color-foreground) 7%, transparent), transparent 62%), linear-gradient(to bottom, transparent 55%, color-mix(in oklab, var(--color-foreground) 5%, transparent))" }} />
       {(eyebrow || heading) && (
-        <header className="relative z-10 flex flex-col items-center gap-2 px-6 pt-8 text-center">
-          {eyebrow && <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{eyebrow}</p>}
-          {heading && <Heading className="text-balance text-3xl font-semibold tracking-tight lg:text-4xl">{heading}</Heading>}
+        <header className="relative z-10 flex flex-col items-center gap-2 px-6 pt-12 text-center lg:pt-20">
+          {eyebrow && <p className="text-sm text-muted-foreground">{eyebrow}</p>}
+          {heading && <Heading className="text-balance text-5xl font-semibold tracking-tight lg:text-7xl">{heading}</Heading>}
         </header>
       )}
 
@@ -953,13 +955,13 @@ export function ClothingRailHero({
         data-stage
         role="group"
         aria-label={heading ?? "Clothing rail"}
-        className="relative mt-5 w-full touch-pan-y select-none"
+        className="relative mt-8 w-full touch-pan-y select-none lg:mt-12"
         style={{ height: Math.round(railY + h * bottom + h * 0.05 + 12), overflowX: "clip" }}
         onPointerMove={onPointerMove}
         onPointerDown={onPointerDown}
         onPointerUp={(event) => finishPointer(event, false)}
         onPointerCancel={(event) => finishPointer(event, true)}
-        onPointerLeave={(event) => { if (event.pointerType === "mouse" && pointer.current.id < 0 && !size.carousel && !document.activeElement?.matches("[data-garment]:focus-visible")) choose(null); }}
+        onPointerLeave={(event) => { if (event.pointerType === "mouse" && pointer.current.id < 0 && !size.carousel && !document.activeElement?.matches("[data-garment]:focus-visible")) choose(defaultActive ?? null); }}
         onKeyDown={onKeyDown}
       >
         <div aria-hidden="true" data-rail className="pointer-events-none absolute inset-x-0 z-0" style={{ top: railY - railR, height: railR * 2 }}>

@@ -20,7 +20,7 @@ export default function ContactPage() {
         <h2>Email</h2>
         <a
           href={`mailto:${siteConfig.email}`}
-          className="inline-flex min-h-11 items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
+          className="inline-flex min-h-11 items-center gap-2 font-medium text-link underline-offset-4 hover:underline"
         >
           <Mail aria-hidden="true" className="size-5" />
           {siteConfig.email}
@@ -30,7 +30,7 @@ export default function ContactPage() {
         <h2>Cari jawaban lebih cepat</h2>
         <p>
           Informasi ukuran, pengiriman, dan retur tersedia di{' '}
-          <Link href="/bantuan" className="font-medium text-primary underline underline-offset-4">
+          <Link href="/bantuan" className="font-medium text-link underline underline-offset-4">
             Pusat Bantuan
           </Link>
           .
