@@ -1,11 +1,10 @@
-import { ChevronDown, ChevronRight, CreditCard, RotateCcw, Ruler, Truck } from 'lucide-react'
+import { CreditCard, RotateCcw, Ruler, Truck } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { connection } from 'next/server'
 import { JsonLd } from '@/components/seo/json-ld'
-import { buttonClasses } from '@/components/ui/button'
 import { Container } from '@/components/ui/container'
-import { faqItems } from '@/content/help'
+import { HomeFaq } from '@/features/home/home-faq'
 import { HomeRailHero } from '@/features/home/home-rail-hero'
 import { SectionHeading } from '@/features/home/section-heading'
 import { ProductArt } from '@/features/products/product-art'
@@ -173,36 +172,7 @@ export default async function HomePage() {
         </Container>
       </section>
 
-      <section aria-labelledby="tanya" className={SECTION}>
-        <Container className="grid gap-8 lg:grid-cols-[1fr_2fr] lg:gap-12">
-          <div>
-            <h2 id="tanya" className="text-3xl font-semibold tracking-tight lg:text-5xl">
-              Ada pertanyaan?
-            </h2>
-            <Link
-              href="/bantuan"
-              className={buttonClasses({ variant: 'outline', className: 'mt-6' })}
-            >
-              Pusat Bantuan
-              <ChevronRight aria-hidden="true" className="size-4" />
-            </Link>
-          </div>
-          <div className="divide-y divide-border border-y border-border">
-            {faqItems.map((item) => (
-              <details key={item.question} className="group py-5">
-                <summary className="flex min-h-7 items-center justify-between gap-4 font-medium [&::-webkit-details-marker]:hidden">
-                  {item.question}
-                  <ChevronDown
-                    aria-hidden="true"
-                    className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
-                  />
-                </summary>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.answer}</p>
-              </details>
-            ))}
-          </div>
-        </Container>
-      </section>
+      <HomeFaq />
     </>
   )
 }

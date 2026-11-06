@@ -126,6 +126,36 @@
   }
 }
 
+/*
+ * Smooth open and close for <details>. Browsers without ::details-content
+ * simply open it instantly. Height is the exception to transform-only motion,
+ * because the answers below have to move.
+ */
+@utility accordion {
+  interpolate-size: allow-keywords;
+
+  &::details-content {
+    block-size: 0;
+    opacity: 0;
+    overflow-y: clip;
+    transition:
+      block-size 300ms ease-out,
+      opacity 200ms ease-out,
+      content-visibility 300ms allow-discrete;
+  }
+
+  &[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::details-content {
+      transition: none;
+    }
+  }
+}
+
 /* Loading placeholder with a soft sweep. */
 @utility skeleton {
   position: relative;
