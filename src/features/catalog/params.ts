@@ -9,10 +9,10 @@ export const PRICE_RANGES = [
 ]
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'rekomendasi', label: 'Rekomendasi' },
+  { value: 'rekomendasi', label: 'Pilihan' },
   { value: 'terbaru', label: 'Terbaru' },
-  { value: 'termurah', label: 'Harga terendah' },
-  { value: 'termahal', label: 'Harga tertinggi' },
+  { value: 'termurah', label: 'Termurah' },
+  { value: 'termahal', label: 'Termahal' },
 ]
 
 export interface CatalogFilters {

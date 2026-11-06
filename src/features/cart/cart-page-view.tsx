@@ -3,7 +3,7 @@
 import { ShoppingBag } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
 import Link from 'next/link'
-import { buttonClasses } from '@/components/ui/button'
+import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { CartLineItem } from './cart-line-item'
 import { CartLoadError } from './cart-load-error'
 import { OrderSummary } from './order-summary'
@@ -55,9 +55,10 @@ export function CartPageView() {
             <OrderSummary subtotal={subtotal} />
             <Link
               href="/checkout"
-              className={buttonClasses({ size: 'lg', className: 'mt-4 w-full' })}
+              className={buttonClasses({ variant: 'action', className: 'mt-4 w-full' })}
             >
               Lanjut ke Checkout
+              <ButtonArrow />
             </Link>
           </aside>
         </div>

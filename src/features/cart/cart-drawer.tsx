@@ -4,7 +4,7 @@ import { ShoppingBag } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { buttonClasses } from '@/components/ui/button'
+import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { Drawer } from '@/components/ui/drawer'
 import { formatRupiah } from '@/lib/format'
 import { FREE_SHIPPING_MIN } from '@/lib/pricing'
@@ -42,8 +42,13 @@ export function CartDrawer() {
               <span className="tabular-nums">{formatRupiah(subtotal)}</span>
             </div>
             <div className="grid gap-2">
-              <Link href="/checkout" onClick={closeCart} className={buttonClasses({ size: 'lg' })}>
+              <Link
+                href="/checkout"
+                onClick={closeCart}
+                className={buttonClasses({ variant: 'action' })}
+              >
                 Lanjut ke Checkout
+                <ButtonArrow />
               </Link>
               <Link
                 href="/keranjang"

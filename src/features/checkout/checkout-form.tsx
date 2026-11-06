@@ -1,38 +1,43 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Info, ShoppingBag } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Info, ShoppingBag } from 'lucide-react'
+import { m } from 'motion/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, type ReactNode } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
-import { Button, buttonClasses } from '@/components/ui/button'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useForm, useWatch, type FieldErrors } from 'react-hook-form'
+import { Button, ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { TextAreaField, TextField } from '@/components/ui/text-field'
 import { CartLoadError } from '@/features/cart/cart-load-error'
 import { OrderSummary } from '@/features/cart/order-summary'
 import { useCart } from '@/features/cart/store'
-import { useCartLines } from '@/features/cart/use-cart-lines'
+import { useCartLines, type CartLine } from '@/features/cart/use-cart-lines'
 import { formatRupiah } from '@/lib/format'
 import { shippingCost, SHIPPING_OPTIONS } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 import { ApiError } from '@/services/api'
 import { createOrder } from '@/services/orders'
+import { CheckoutSteps } from './checkout-steps'
 import { checkoutSchema, type CheckoutValues } from './schema'
+
+const STEPS = [
+  {
+    title: 'Data Diri',
+    fields: ['email', 'phone', 'fullName', 'address', 'city', 'province', 'postalCode', 'notes'],
+  },
+  { title: 'Pengiriman', fields: ['shippingMethod'] },
+  { title: 'Pembayaran', fields: ['paymentMethod'] },
+] as const
+
+const STEP_TITLES = STEPS.map((step) => step.title)
+const LAST_STEP = STEPS.length - 1
 
 const PAYMENT_OPTIONS = [
   { value: 'transfer', label: 'Transfer bank', hint: 'Bayar melalui rekening virtual' },
   { value: 'ewallet', label: 'Dompet digital', hint: 'Bayar dengan aplikasi dompet digital' },
   { value: 'cod', label: 'Bayar di tempat', hint: 'Bayar saat pesanan diterima' },
 ] as const
-
-function FormSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="rounded-xl border border-border bg-card p-4 md:p-6">
-      <legend className="float-left mb-4 w-full text-lg font-semibold">{title}</legend>
-      <div className="clear-both">{children}</div>
-    </fieldset>
-  )
-}
 
 function OptionCard({
   label,
@@ -50,8 +55,8 @@ function OptionCard({
   return (
     <label
       className={cn(
-        'flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border p-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring',
-        checked ? 'border-primary' : 'border-input',
+        'flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border p-4 transition-colors duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring',
+        checked ? 'border-foreground bg-muted' : 'border-input hover:border-foreground',
       )}
     >
       {input}
@@ -64,19 +69,66 @@ function OptionCard({
   )
 }
 
+function ReviewRow({
+  title,
+  onEdit,
+  children,
+}: {
+  title: string
+  onEdit: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3">
+      <div className="min-w-0 text-sm">
+        <p className="font-medium">{title}</p>
+        <div className="mt-0.5 text-muted-foreground [overflow-wrap:anywhere]">{children}</div>
+      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Ubah ${title.toLowerCase()}`}
+        className="min-h-11 shrink-0 cursor-pointer px-1 text-sm text-link underline-offset-4 hover:underline"
+      >
+        Ubah
+      </button>
+    </div>
+  )
+}
+
+function OrderLines({ lines }: { lines: CartLine[] }) {
+  return (
+    <ul className="mb-4 space-y-2 border-b border-border pb-4 text-sm">
+      {lines.map((line) => (
+        <li key={line.key} className="flex justify-between gap-4">
+          <span>
+            {line.product.name} <span className="text-muted-foreground">x{line.quantity}</span>
+          </span>
+          <span className="tabular-nums">{formatRupiah(line.lineTotal)}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function CheckoutForm() {
   const router = useRouter()
   const items = useCart((state) => state.items)
   const clear = useCart((state) => state.clear)
   const { lines, subtotal, isLoading, isError, retry } = useCartLines()
+  const [step, setStep] = useState(0)
+  const [direction, setDirection] = useState(1)
   const [submitError, setSubmitError] = useState('')
   const [ordered, setOrdered] = useState(false)
   // Stays the same across retries, so a lost response cannot create two orders.
   const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const shownStep = useRef(0)
 
   const {
     register,
     handleSubmit,
+    trigger,
     control,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutValues>({
@@ -85,9 +137,34 @@ export function CheckoutForm() {
     defaultValues: { shippingMethod: 'reguler', paymentMethod: 'transfer' },
   })
 
-  const shippingMethod = useWatch({ control, name: 'shippingMethod' })
-  const paymentMethod = useWatch({ control, name: 'paymentMethod' })
+  const values = useWatch({ control })
+  const shippingMethod = values.shippingMethod ?? 'reguler'
+  const paymentMethod = values.paymentMethod ?? 'transfer'
   const shipping = shippingCost(subtotal, shippingMethod)
+
+  // The browser back button moves between steps instead of leaving the form.
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      setDirection(-1)
+      setStep((event.state?.checkoutStep as number | undefined) ?? 0)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  useEffect(() => {
+    if (shownStep.current === step) return
+    shownStep.current = step
+    window.scrollTo({ top: 0 })
+    headingRef.current?.focus({ preventScroll: true })
+  }, [step])
+
+  function goTo(next: number) {
+    setSubmitError('')
+    setDirection(next > step ? 1 : -1)
+    setStep(next)
+    window.history.pushState({ checkoutStep: next }, '')
+  }
 
   async function onSubmit(customer: CheckoutValues) {
     setSubmitError('')
@@ -101,6 +178,22 @@ export function CheckoutForm() {
         error instanceof ApiError ? error.message : 'Pesanan gagal dibuat. Coba lagi.',
       )
     }
+  }
+
+  /** A field from an earlier step can only fail here if its step was skipped. */
+  function onInvalid(fieldErrors: FieldErrors<CheckoutValues>) {
+    const invalid = STEPS.findIndex((item) => item.fields.some((field) => field in fieldErrors))
+    if (invalid >= 0) goTo(invalid)
+  }
+
+  async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (step === LAST_STEP) {
+      await handleSubmit(onSubmit, onInvalid)(event)
+      return
+    }
+    const valid = await trigger([...STEPS[step].fields], { shouldFocus: true })
+    if (valid) goTo(step + 1)
   }
 
   if (isLoading) {
@@ -125,169 +218,239 @@ export function CheckoutForm() {
     )
   }
 
+  const summary = (
+    <>
+      <OrderLines lines={lines} />
+      <OrderSummary subtotal={subtotal} shipping={shipping} />
+    </>
+  )
+
   return (
-    <form
-      noValidate
-      onSubmit={handleSubmit(onSubmit)}
-      className="grid gap-6 lg:grid-cols-3 lg:gap-8"
-    >
-      <div className="grid gap-6 lg:col-span-2">
-        <p className="flex gap-2 rounded-lg bg-secondary p-3 text-sm text-secondary-foreground">
-          <Info aria-hidden="true" className="size-5 shrink-0" />
-          Pembayaran belum aktif. Pesanan tersimpan, tetapi belum ada tagihan sungguhan.
-        </p>
+    <div className="grid gap-8 lg:grid-cols-3 lg:gap-12">
+      <div className="min-w-0 lg:col-span-2">
+        <CheckoutSteps titles={STEP_TITLES} current={step} onSelect={goTo} />
 
-        <FormSection title="Kontak">
-          <div className="grid gap-4 md:grid-cols-2">
-            <TextField
-              id="email"
-              label="Email"
-              type="email"
-              autoComplete="email"
-              required
-              error={errors.email?.message}
-              {...register('email')}
-            />
-            <TextField
-              id="phone"
-              label="Nomor ponsel"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              hint="Dipakai kurir untuk menghubungi Anda."
-              required
-              error={errors.phone?.message}
-              {...register('phone')}
-            />
-          </div>
-        </FormSection>
-
-        <FormSection title="Alamat pengiriman">
-          <div className="grid gap-4 md:grid-cols-2">
-            <TextField
-              id="fullName"
-              label="Nama penerima"
-              autoComplete="name"
-              required
-              className="md:col-span-2"
-              error={errors.fullName?.message}
-              {...register('fullName')}
-            />
-            <TextAreaField
-              id="address"
-              label="Alamat lengkap"
-              autoComplete="street-address"
-              required
-              className="md:col-span-2"
-              error={errors.address?.message}
-              {...register('address')}
-            />
-            <TextField
-              id="city"
-              label="Kota atau kabupaten"
-              autoComplete="address-level2"
-              required
-              error={errors.city?.message}
-              {...register('city')}
-            />
-            <TextField
-              id="province"
-              label="Provinsi"
-              autoComplete="address-level1"
-              required
-              error={errors.province?.message}
-              {...register('province')}
-            />
-            <TextField
-              id="postalCode"
-              label="Kode pos"
-              inputMode="numeric"
-              autoComplete="postal-code"
-              required
-              error={errors.postalCode?.message}
-              {...register('postalCode')}
-            />
-            <TextField
-              id="notes"
-              label="Catatan untuk kurir"
-              error={errors.notes?.message}
-              {...register('notes')}
-            />
-          </div>
-        </FormSection>
-
-        <FormSection title="Metode pengiriman">
-          <div className="grid gap-3">
-            {(Object.keys(SHIPPING_OPTIONS) as (keyof typeof SHIPPING_OPTIONS)[]).map((method) => {
-              const cost = shippingCost(subtotal, method)
-              return (
-                <OptionCard
-                  key={method}
-                  label={SHIPPING_OPTIONS[method].label}
-                  hint={SHIPPING_OPTIONS[method].eta}
-                  aside={cost === 0 ? 'Gratis' : formatRupiah(cost)}
-                  checked={shippingMethod === method}
-                  input={
-                    <input
-                      type="radio"
-                      value={method}
-                      className="size-5 accent-primary"
-                      {...register('shippingMethod')}
-                    />
-                  }
-                />
-              )
-            })}
-          </div>
-        </FormSection>
-
-        <FormSection title="Metode pembayaran">
-          <div className="grid gap-3">
-            {PAYMENT_OPTIONS.map((option) => (
-              <OptionCard
-                key={option.value}
-                label={option.label}
-                hint={option.hint}
-                checked={paymentMethod === option.value}
-                input={
-                  <input
-                    type="radio"
-                    value={option.value}
-                    className="size-5 accent-primary"
-                    {...register('paymentMethod')}
-                  />
-                }
+        <details className="group mt-6 rounded-xl bg-muted p-4 lg:hidden">
+          <summary className="flex min-h-7 items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">
+            <span>Ringkasan pesanan</span>
+            <span className="flex items-center gap-2 tabular-nums">
+              {formatRupiah(subtotal + shipping)}
+              <ChevronDown
+                aria-hidden="true"
+                className="size-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
               />
-            ))}
+            </span>
+          </summary>
+          <div className="mt-4">{summary}</div>
+        </details>
+
+        <form noValidate onSubmit={handleFormSubmit} className="mt-8">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-2xl font-semibold tracking-tight outline-none lg:text-3xl"
+          >
+            {STEPS[step].title}
+          </h2>
+
+          <m.div
+            key={step}
+            initial={{ opacity: 0, x: direction * 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.22 }}
+            className="mt-6"
+          >
+            {step === 0 && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <TextField
+                  id="email"
+                  label="Email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  error={errors.email?.message}
+                  {...register('email')}
+                />
+                <TextField
+                  id="phone"
+                  label="Nomor ponsel"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  hint="Dipakai kurir untuk menghubungi Anda."
+                  required
+                  error={errors.phone?.message}
+                  {...register('phone')}
+                />
+                <TextField
+                  id="fullName"
+                  label="Nama penerima"
+                  autoComplete="name"
+                  required
+                  className="md:col-span-2"
+                  error={errors.fullName?.message}
+                  {...register('fullName')}
+                />
+                <TextAreaField
+                  id="address"
+                  label="Alamat lengkap"
+                  autoComplete="street-address"
+                  required
+                  className="md:col-span-2"
+                  error={errors.address?.message}
+                  {...register('address')}
+                />
+                <TextField
+                  id="city"
+                  label="Kota atau kabupaten"
+                  autoComplete="address-level2"
+                  required
+                  error={errors.city?.message}
+                  {...register('city')}
+                />
+                <TextField
+                  id="province"
+                  label="Provinsi"
+                  autoComplete="address-level1"
+                  required
+                  error={errors.province?.message}
+                  {...register('province')}
+                />
+                <TextField
+                  id="postalCode"
+                  label="Kode pos"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  required
+                  error={errors.postalCode?.message}
+                  {...register('postalCode')}
+                />
+                <TextField
+                  id="notes"
+                  label="Catatan untuk kurir"
+                  error={errors.notes?.message}
+                  {...register('notes')}
+                />
+              </div>
+            )}
+
+            {step === 1 && (
+              <fieldset className="grid gap-3">
+                <legend className="sr-only">Metode pengiriman</legend>
+                {(Object.keys(SHIPPING_OPTIONS) as (keyof typeof SHIPPING_OPTIONS)[]).map(
+                  (method) => {
+                    const cost = shippingCost(subtotal, method)
+                    return (
+                      <OptionCard
+                        key={method}
+                        label={SHIPPING_OPTIONS[method].label}
+                        hint={SHIPPING_OPTIONS[method].eta}
+                        aside={cost === 0 ? 'Gratis' : formatRupiah(cost)}
+                        checked={shippingMethod === method}
+                        input={
+                          <input
+                            type="radio"
+                            value={method}
+                            className="size-5 accent-primary"
+                            {...register('shippingMethod')}
+                          />
+                        }
+                      />
+                    )
+                  },
+                )}
+              </fieldset>
+            )}
+
+            {step === 2 && (
+              <>
+                <fieldset className="grid gap-3">
+                  <legend className="sr-only">Metode pembayaran</legend>
+                  {PAYMENT_OPTIONS.map((option) => (
+                    <OptionCard
+                      key={option.value}
+                      label={option.label}
+                      hint={option.hint}
+                      checked={paymentMethod === option.value}
+                      input={
+                        <input
+                          type="radio"
+                          value={option.value}
+                          className="size-5 accent-primary"
+                          {...register('paymentMethod')}
+                        />
+                      }
+                    />
+                  ))}
+                </fieldset>
+
+                <p className="mt-4 flex gap-2 rounded-xl bg-muted p-3 text-sm text-muted-foreground">
+                  <Info aria-hidden="true" className="size-5 shrink-0" />
+                  Pembayaran belum aktif. Pesanan tersimpan, tetapi belum ada tagihan sungguhan.
+                </p>
+
+                <section aria-labelledby="tinjau" className="mt-8">
+                  <h3 id="tinjau" className="font-semibold">
+                    Tinjau pesanan
+                  </h3>
+                  <div className="mt-1 divide-y divide-border border-y border-border">
+                    <ReviewRow title="Kontak" onEdit={() => goTo(0)}>
+                      {values.email}
+                      <br />
+                      {values.phone}
+                    </ReviewRow>
+                    <ReviewRow title="Alamat pengiriman" onEdit={() => goTo(0)}>
+                      {values.fullName}
+                      <br />
+                      {values.address}, {values.city}, {values.province} {values.postalCode}
+                    </ReviewRow>
+                    <ReviewRow title="Metode pengiriman" onEdit={() => goTo(1)}>
+                      {SHIPPING_OPTIONS[shippingMethod].label},{' '}
+                      {SHIPPING_OPTIONS[shippingMethod].eta}
+                    </ReviewRow>
+                  </div>
+                </section>
+              </>
+            )}
+          </m.div>
+
+          {submitError && (
+            <p role="alert" className="mt-4 text-sm text-destructive">
+              {submitError}
+            </p>
+          )}
+
+          <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {step > 0 ? (
+              <Button variant="outline" size="lg" onClick={() => goTo(step - 1)}>
+                <ArrowLeft aria-hidden="true" className="size-5" />
+                Kembali
+              </Button>
+            ) : (
+              <Link href="/keranjang" className={buttonClasses({ variant: 'outline', size: 'lg' })}>
+                <ArrowLeft aria-hidden="true" className="size-5" />
+                Keranjang
+              </Link>
+            )}
+            <Button type="submit" variant="action" disabled={isSubmitting}>
+              {step === LAST_STEP
+                ? isSubmitting
+                  ? 'Memproses...'
+                  : 'Buat Pesanan'
+                : `Lanjut ke ${STEPS[step + 1].title}`}
+              <ButtonArrow />
+            </Button>
           </div>
-        </FormSection>
+        </form>
       </div>
 
       <aside
         aria-label="Ringkasan pesanan"
-        className="rounded-xl border border-border bg-card p-4 md:p-6 lg:sticky lg:top-24 lg:self-start"
+        className="hidden rounded-3xl bg-muted p-6 lg:sticky lg:top-24 lg:block lg:self-start"
       >
         <h2 className="mb-4 text-lg font-semibold">Ringkasan pesanan</h2>
-        <ul className="mb-4 space-y-2 border-b border-border pb-4 text-sm">
-          {lines.map((line) => (
-            <li key={line.key} className="flex justify-between gap-4">
-              <span>
-                {line.product.name} <span className="text-muted-foreground">x{line.quantity}</span>
-              </span>
-              <span className="tabular-nums">{formatRupiah(line.lineTotal)}</span>
-            </li>
-          ))}
-        </ul>
-        <OrderSummary subtotal={subtotal} shipping={shipping} />
-        {submitError && (
-          <p role="alert" className="mt-3 text-sm text-destructive">
-            {submitError}
-          </p>
-        )}
-        <Button type="submit" size="lg" disabled={isSubmitting} className="mt-4 w-full">
-          {isSubmitting ? 'Memproses...' : 'Buat Pesanan'}
-        </Button>
+        {summary}
       </aside>
-    </form>
+    </div>
   )
 }

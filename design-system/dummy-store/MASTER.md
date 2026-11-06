@@ -27,6 +27,7 @@ Toko ini punya satu benda khas, yaitu label baju yang digantung. Motif ini yang 
 - **Hanya untuk satu CTA terpenting di halaman brand:** hero beranda dan halaman 404. Tombol fungsional seperti tambah ke keranjang tetap memakai pill biasa.
 - **Rel pakaian** di hero beranda adalah elemen utama, dan label harganya memakai bahasa bentuk yang sama.
 - **Logo dan favicon** memakai bentuk label yang sama.
+- **Jahitan:** progres checkout digambar sebagai garis jahitan yang menjadi benang utuh. Pakai hanya untuk progres.
 
 ## 3. Warna
 
@@ -153,13 +154,14 @@ Lapisan z-index:
 
 ## 9. Tombol
 
-Dasar: `inline-flex items-center justify-center gap-2 rounded-full font-semibold cursor-pointer transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed`.
+Dasar: `buttonClasses()` di `src/components/ui/button.tsx`. Semua tombol berbentuk pill, dengan efek tekan `active:scale-[0.97]`.
 
 | Varian | Kelas | Kegunaan |
 | --- | --- | --- |
-| Primary | `bg-primary text-primary-foreground hover:bg-primary-hover` | Tambah ke keranjang, bayar |
+| Action | `variant="action"` dengan `ButtonArrow` atau `ButtonIcon` | Satu langkah maju utama: tambah ke keranjang, checkout, buat pesanan |
+| Primary | `bg-primary text-primary-foreground hover:bg-primary-hover` | Aksi utama yang kecil, seperti tombol di status kosong |
 | Secondary | `bg-secondary text-secondary-foreground hover:bg-secondary/70` | Aksi pendamping |
-| Outline | `border border-input bg-transparent hover:bg-muted` | Filter, aksi netral |
+| Outline | `variant="outline"`, terisi dari bawah saat hover | Filter, kembali, aksi netral |
 | Ghost | `bg-transparent hover:bg-muted` | Navigasi, ikon |
 | Destructive | `bg-destructive text-destructive-foreground hover:bg-destructive/90` | Hapus |
 | Tautan | `text-link hover:underline` dengan ikon chevron | Aksi sekunder di hero dan section |
@@ -169,12 +171,14 @@ Dasar: `inline-flex items-center justify-center gap-2 rounded-full font-semibold
 | `sm` | 36px | `h-9 px-3 text-sm`, hanya di desktop |
 | `md` (default) | 44px | `h-11 px-5 text-base` |
 | `lg` | 48px | `h-12 px-6 text-base` |
+| `action` | 56px | Otomatis untuk varian Action |
 | Ikon | 44 x 44px | `size-11`, wajib `aria-label` |
 
 Aturan:
 
 - Target sentuh di mobile minimal 44 x 44px, dengan jarak antar target minimal 8px.
 - Saat proses berjalan, tombol dinonaktifkan dan menampilkan status, dengan lebar tetap.
+- Jangan memakai `<select>` bawaan untuk pilihan singkat. Pakai segmented control seperti `SortTabs`, yang tiap pilihannya berupa link.
 - Efek tekan tidak boleh menggeser layout. Gunakan `active:scale-[0.98]` paling besar.
 
 ## 10. Kartu dan tile
@@ -201,6 +205,7 @@ Hindari glassmorphism, gradien dekoratif, dan bayangan pada kartu.
 - **Setelah submit gagal:** pindahkan fokus ke field pertama yang salah, atau ke ringkasan error jika errornya banyak.
 - **Mobile:** gunakan `type`, `inputMode`, dan `autoComplete` yang tepat, misalnya `tel`, `email`, dan `postal-code`.
 - **Pengelompokan:** field terkait memakai `fieldset` dan `legend`.
+- **Checkout:** 3 langkah dengan `CheckoutSteps`. Validasi per langkah, langkah selesai bisa dibuka lagi, langkah berikutnya terkunci, dan tombol back browser berpindah antar-langkah. Langkah terakhir menampilkan tinjauan.
 
 ## 12. Responsive
 

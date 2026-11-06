@@ -1,7 +1,7 @@
 import { CircleCheck } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { buttonClasses } from '@/components/ui/button'
+import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { Container } from '@/components/ui/container'
 
 export const metadata: Metadata = {
@@ -25,8 +25,9 @@ export default async function CheckoutSuccessPage(props: PageProps<'/checkout/be
       <p className="mt-2 max-w-prose leading-relaxed text-muted-foreground">
         Pesanan Anda tersimpan. Pembayaran belum aktif, jadi belum ada tagihan sungguhan.
       </p>
-      <Link href="/produk" className={buttonClasses({ className: 'mt-6' })}>
+      <Link href="/produk" className={buttonClasses({ variant: 'action', className: 'mt-6' })}>
         Lanjut Belanja
+        <ButtonArrow />
       </Link>
     </Container>
   )

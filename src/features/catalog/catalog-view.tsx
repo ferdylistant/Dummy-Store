@@ -9,7 +9,7 @@ import { itemListJsonLd, type BreadcrumbItem } from '@/lib/seo'
 import { cn } from '@/lib/utils'
 import { getCategories, getFacets, getProducts } from '@/services/products'
 import type { CategorySlug } from '@/types/catalog'
-import { FilterDrawer, ResultsFade, SortSelect } from './catalog-controls'
+import { FilterDrawer, ResultsFade, SortTabs } from './catalog-controls'
 import { FilterPanel } from './filter-panel'
 import {
   catalogHref,
@@ -95,18 +95,16 @@ export async function CatalogView({
             <p role="status" className="text-sm text-muted-foreground">
               {result.total} produk
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <FilterDrawer activeCount={chips.length} total={result.total}>
-                {panel}
-              </FilterDrawer>
-              <SortSelect
+            <FilterDrawer activeCount={chips.length} total={result.total}>
+              {panel}
+            </FilterDrawer>
+            <SortTabs
                 value={filters.sort}
                 options={SORT_OPTIONS.map((option) => ({
                   ...option,
                   href: catalogHref(basePath, filters, { sort: option.value }),
                 }))}
               />
-            </div>
           </div>
 
           {chips.length > 0 && (

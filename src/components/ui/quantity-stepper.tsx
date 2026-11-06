@@ -29,7 +29,7 @@ export function QuantityStepper({
       >
         <Minus aria-hidden="true" className="size-4" />
       </Button>
-      <span aria-live="polite" className="w-8 text-center font-medium tabular-nums">
+      <span aria-live="polite" className="w-6 text-center font-medium tabular-nums">
         {value}
       </span>
       <Button

@@ -2,7 +2,7 @@
 
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { buttonClasses } from '@/components/ui/button'
+import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { HangTagLink } from '@/components/ui/hang-tag-link'
 import ClothingRailHero from '@/components/ui/product-rail-gallery'
 import type { RailGarment } from '@/components/ui/product-rail-gallery'
@@ -32,8 +32,12 @@ export function HomeRailHero({ items, featured }: { items: RailGarment[]; featur
         </div>
       }
       detailAction={(item) => (
-        <Link href={`/produk/${item.id}`} className={buttonClasses({ className: 'mt-2' })}>
+        <Link
+          href={`/produk/${item.id}`}
+          className={buttonClasses({ variant: 'action', className: 'mt-2' })}
+        >
           Lihat Produk
+          <ButtonArrow />
         </Link>
       )}
     />
