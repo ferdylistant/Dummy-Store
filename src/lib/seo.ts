@@ -2,6 +2,12 @@ import { FREE_SHIPPING_MIN, RETURN_DAYS, SHIPPING_OPTIONS } from '@/lib/pricing'
 import { absoluteUrl, siteConfig } from '@/lib/site'
 import type { Category, Product } from '@/types/catalog'
 
+/**
+ * A page that sets openGraph replaces the parent object, so it must name the
+ * shared image itself. Product pages have their own image file instead.
+ */
+export const SHARE_IMAGE = { url: '/opengraph-image', width: 1200, height: 630 }
+
 export interface BreadcrumbItem {
   label: string
   href: string

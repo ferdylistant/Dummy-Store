@@ -12,7 +12,7 @@ import { ProductArt } from '@/features/products/product-art'
 import { ProductCard } from '@/features/products/product-card'
 import { formatRupiah, formatRupiahShort } from '@/lib/format'
 import { FREE_SHIPPING_MIN, RETURN_DAYS } from '@/lib/pricing'
-import { websiteJsonLd } from '@/lib/seo'
+import { SHARE_IMAGE, websiteJsonLd } from '@/lib/seo'
 import { cn } from '@/lib/utils'
 import {
   getCategories,
@@ -23,7 +23,7 @@ import {
 
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
-  openGraph: { url: '/' },
+  openGraph: { url: '/', images: [SHARE_IMAGE] },
 }
 
 const BENEFITS = [

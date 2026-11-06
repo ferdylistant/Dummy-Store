@@ -4,7 +4,7 @@ import { JsonLd } from '@/components/seo/json-ld'
 import { faqItems, pantsChart, sizeChart } from '@/content/help'
 import { formatRupiah } from '@/lib/format'
 import { FREE_SHIPPING_MIN, RETURN_DAYS, SHIPPING_OPTIONS } from '@/lib/pricing'
-import { faqJsonLd } from '@/lib/seo'
+import { faqJsonLd, SHARE_IMAGE } from '@/lib/seo'
 
 const DESCRIPTION = 'Panduan ukuran, informasi pengiriman, retur, dan jawaban pertanyaan umum.'
 
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: 'Pusat Bantuan',
   description: DESCRIPTION,
   alternates: { canonical: '/bantuan' },
-  openGraph: { title: 'Pusat Bantuan', description: DESCRIPTION, url: '/bantuan' },
+  openGraph: { title: 'Pusat Bantuan', description: DESCRIPTION, url: '/bantuan', images: [SHARE_IMAGE] },
 }
 
 const TABLE = 'w-full border-collapse text-left text-sm [&_td]:border-t [&_td]:border-border [&_td]:py-2 [&_td]:pr-4 [&_th]:py-2 [&_th]:pr-4 [&_th]:font-semibold'

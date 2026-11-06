@@ -17,9 +17,9 @@ export function SiteFooter() {
           </p>
           <a
             href={`mailto:${siteConfig.email}`}
-            className="mt-2 inline-block py-1 text-sm text-link underline-offset-4 hover:underline"
+            className="mt-2 inline-block py-1 text-sm"
           >
-            {siteConfig.email}
+            <span className="link-stitch">{siteConfig.email}</span>
           </a>
         </div>
         {footerNavigation.map((group) => (

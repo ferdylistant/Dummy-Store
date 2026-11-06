@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { InfoPage } from '@/components/layout/info-page'
 import { siteConfig } from '@/lib/site'
+import { SHARE_IMAGE } from '@/lib/seo'
 
 const DESCRIPTION = `${siteConfig.name} menjual baju, celana, bandana, dan merchandise untuk dipakai setiap hari.`
 
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
   title: 'Tentang Kami',
   description: DESCRIPTION,
   alternates: { canonical: '/tentang' },
-  openGraph: { title: 'Tentang Kami', description: DESCRIPTION, url: '/tentang' },
+  openGraph: { title: 'Tentang Kami', description: DESCRIPTION, url: '/tentang', images: [SHARE_IMAGE] },
 }
 
 export default function AboutPage() {

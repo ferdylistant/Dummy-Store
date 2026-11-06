@@ -24,10 +24,13 @@ export function HomeRailHero({ items, featured }: { items: RailGarment[]; featur
           <HangTagLink href="/produk">Lihat Koleksi</HangTagLink>
           <Link
             href="/bantuan#ukuran"
-            className="inline-flex min-h-11 items-center gap-0.5 text-link underline-offset-4 hover:underline"
+            className="group inline-flex min-h-11 items-center gap-0.5 font-medium"
           >
-            Panduan ukuran
-            <ChevronRight aria-hidden="true" className="size-4" />
+            <span className="link-stitch">Panduan ukuran</span>
+            <ChevronRight
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+            />
           </Link>
         </div>
       }

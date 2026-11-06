@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { InfoPage } from '@/components/layout/info-page'
 import { siteConfig } from '@/lib/site'
+import { SHARE_IMAGE } from '@/lib/seo'
 
 const DESCRIPTION = 'Cara kami mengumpulkan, memakai, dan melindungi data pribadi Anda.'
 
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
   title: 'Kebijakan Privasi',
   description: DESCRIPTION,
   alternates: { canonical: '/kebijakan-privasi' },
-  openGraph: { title: 'Kebijakan Privasi', description: DESCRIPTION, url: '/kebijakan-privasi' },
+  openGraph: { title: 'Kebijakan Privasi', description: DESCRIPTION, url: '/kebijakan-privasi', images: [SHARE_IMAGE] },
 }
 
 export default function PrivacyPage() {

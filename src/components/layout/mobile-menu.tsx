@@ -45,7 +45,7 @@ export function MobileMenu() {
                     aria-current={active ? 'page' : undefined}
                     className={cn(
                       'flex min-h-14 items-center text-2xl font-semibold tracking-tight',
-                      active ? 'text-link' : 'text-foreground',
+                      active ? 'text-foreground' : 'text-muted-foreground',
                     )}
                   >
                     {item.label}

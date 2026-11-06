@@ -18,6 +18,7 @@ import { shippingCost, SHIPPING_OPTIONS } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 import { ApiError } from '@/services/api'
 import { createOrder } from '@/services/orders'
+import { CheckoutSkeleton } from './checkout-skeleton'
 import { CheckoutSteps } from './checkout-steps'
 import { checkoutSchema, type CheckoutValues } from './schema'
 
@@ -88,9 +89,9 @@ function ReviewRow({
         type="button"
         onClick={onEdit}
         aria-label={`Ubah ${title.toLowerCase()}`}
-        className="min-h-11 shrink-0 cursor-pointer px-1 text-sm text-link underline-offset-4 hover:underline"
+        className="min-h-11 shrink-0 cursor-pointer px-1 text-sm font-medium"
       >
-        Ubah
+        <span className="link-stitch">Ubah</span>
       </button>
     </div>
   )
@@ -196,13 +197,7 @@ export function CheckoutForm() {
     if (valid) goTo(step + 1)
   }
 
-  if (isLoading) {
-    return (
-      <div role="status" aria-label="Memuat checkout" className="grid gap-4">
-        <div className="h-64 animate-pulse rounded-xl bg-muted" />
-      </div>
-    )
-  }
+  if (isLoading) return <CheckoutSkeleton />
 
   if (isError) return <CartLoadError onRetry={retry} />
 

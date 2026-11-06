@@ -10,6 +10,7 @@ import { formatRupiah } from '@/lib/format'
 import { FREE_SHIPPING_MIN } from '@/lib/pricing'
 import { CartLineItem } from './cart-line-item'
 import { CartLoadError } from './cart-load-error'
+import { CartLinesSkeleton } from './cart-skeletons'
 import { RemovedNotice } from './removed-notice'
 import { useCart } from './store'
 import { useCartLines } from './use-cart-lines'
@@ -17,7 +18,7 @@ import { useCartLines } from './use-cart-lines'
 export function CartDrawer() {
   const isOpen = useCart((state) => state.isOpen)
   const closeCart = useCart((state) => state.closeCart)
-  const { lines, subtotal, count, isError, retry } = useCartLines()
+  const { lines, subtotal, count, isLoading, isError, retry } = useCartLines()
   const remaining = FREE_SHIPPING_MIN - subtotal
 
   useEffect(() => {
@@ -63,7 +64,9 @@ export function CartDrawer() {
       }
     >
       <RemovedNotice className="m-4 mb-0" />
-      {isError ? (
+      {isLoading ? (
+        <CartLinesSkeleton className="divide-y divide-border px-4" />
+      ) : isError ? (
         <CartLoadError onRetry={retry} />
       ) : lines.length > 0 ? (
         <ul className="relative divide-y divide-border px-4">

@@ -16,6 +16,7 @@ export function useCartLines() {
   const hydrated = useCartHydrated()
   const items = useCart((state) => state.items)
   const [products, setProducts] = useState<Product[] | null>(null)
+  const [loadedIds, setLoadedIds] = useState<string | null>(null)
   const [isError, setIsError] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const ids = useMemo(() => [...new Set(items.map((item) => item.productId))].join(','), [items])
@@ -26,6 +27,7 @@ export function useCartLines() {
       .then((result) => {
         if (!active) return
         setProducts(result)
+        setLoadedIds(ids)
         setIsError(false)
       })
       .catch(() => {
@@ -53,11 +55,17 @@ export function useCartLines() {
     return result
   }, [items, products])
 
+  // A new item has no product data until its request returns. Removing an item
+  // needs no reload, so the list stays on screen.
+  const waitingForNewItem =
+    loadedIds !== ids &&
+    items.some((item) => !products?.some((product) => product.id === item.productId))
+
   return {
     lines,
     subtotal: lines.reduce((sum, line) => sum + line.lineTotal, 0),
     count: lines.reduce((sum, line) => sum + line.quantity, 0),
-    isLoading: !hydrated || (products === null && !isError),
+    isLoading: !hydrated || ((products === null || waitingForNewItem) && !isError),
     isError,
     retry: () => setAttempt((value) => value + 1),
   }

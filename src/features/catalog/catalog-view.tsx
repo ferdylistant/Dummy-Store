@@ -127,9 +127,9 @@ export async function CatalogView({
                 <Link
                   href={basePath}
                   scroll={false}
-                  className="inline-flex min-h-9 items-center px-2 text-sm font-medium text-link underline-offset-4 hover:underline"
+                  className="inline-flex min-h-9 items-center px-2 text-sm font-medium"
                 >
-                  Hapus semua
+                  <span className="link-stitch">Hapus semua</span>
                 </Link>
               </li>
             </ul>

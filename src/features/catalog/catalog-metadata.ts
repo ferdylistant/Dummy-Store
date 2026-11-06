@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { SHARE_IMAGE } from '@/lib/seo'
 import { catalogHref, hasActiveFilters, type CatalogFilters } from './params'
 
 /**
@@ -25,7 +26,7 @@ export function catalogMetadata({
     title: fullTitle,
     description,
     alternates: { canonical },
-    openGraph: { title: fullTitle, description, url: canonical },
+    openGraph: { title: fullTitle, description, url: canonical, images: [SHARE_IMAGE] },
     robots: filtered ? { index: false, follow: true } : undefined,
   }
 }

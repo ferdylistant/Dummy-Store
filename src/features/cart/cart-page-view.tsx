@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { CartLineItem } from './cart-line-item'
 import { CartLoadError } from './cart-load-error'
+import { CartPageSkeleton } from './cart-skeletons'
 import { OrderSummary } from './order-summary'
 import { RemovedNotice } from './removed-notice'
 import { useCartLines } from './use-cart-lines'
@@ -13,14 +14,7 @@ import { useCartLines } from './use-cart-lines'
 export function CartPageView() {
   const { lines, subtotal, isLoading, isError, retry } = useCartLines()
 
-  if (isLoading) {
-    return (
-      <div role="status" aria-label="Memuat keranjang" className="grid gap-4">
-        <div className="h-28 animate-pulse rounded-xl bg-muted" />
-        <div className="h-28 animate-pulse rounded-xl bg-muted" />
-      </div>
-    )
-  }
+  if (isLoading) return <CartPageSkeleton />
 
   if (isError) return <CartLoadError onRetry={retry} />
 

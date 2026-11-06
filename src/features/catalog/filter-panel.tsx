@@ -36,7 +36,7 @@ export function FilterPanel({
             <Link
               href="/produk"
               aria-current={!activeCategory ? 'page' : undefined}
-              className={cn(ROW, !activeCategory && 'font-semibold text-link')}
+              className={cn(ROW, !activeCategory && 'bg-muted font-semibold')}
             >
               Semua produk
             </Link>
@@ -46,7 +46,7 @@ export function FilterPanel({
               <Link
                 href={`/kategori/${category.slug}`}
                 aria-current={activeCategory === category.slug ? 'page' : undefined}
-                className={cn(ROW, activeCategory === category.slug && 'font-semibold text-link')}
+                className={cn(ROW, activeCategory === category.slug && 'bg-muted font-semibold')}
               >
                 {category.name}
               </Link>
@@ -106,7 +106,7 @@ export function FilterPanel({
                     style={{ backgroundColor: color.hex }}
                   />
                   <span className={cn('flex-1', active && 'font-semibold')}>{color.name}</span>
-                  {active && <Check aria-hidden="true" className="size-4 text-link" />}
+                  {active && <Check aria-hidden="true" className="size-4" />}
                 </Link>
               </li>
             )
@@ -128,7 +128,7 @@ export function FilterPanel({
                   className={ROW}
                 >
                   <span className={cn('flex-1', active && 'font-semibold')}>{range.label}</span>
-                  {active && <Check aria-hidden="true" className="size-4 text-link" />}
+                  {active && <Check aria-hidden="true" className="size-4" />}
                 </Link>
               </li>
             )

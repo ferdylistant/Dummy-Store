@@ -123,9 +123,9 @@ export function ProductView({ product }: { product: Product }) {
               <legend className="text-sm font-medium">Ukuran</legend>
               <Link
                 href="/bantuan#ukuran"
-                className="py-1 text-sm font-medium text-link underline-offset-4 hover:underline"
+                className="py-1 text-sm font-medium"
               >
-                Panduan ukuran
+                <span className="link-stitch">Panduan ukuran</span>
               </Link>
             </div>
             <div className="mt-2 flex flex-wrap gap-2">

@@ -35,7 +35,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
         <div style={{ display: 'flex', fontSize: 76, fontWeight: 700 }}>
           {product?.name ?? siteConfig.name}
         </div>
-        <div style={{ display: 'flex', marginTop: 20, fontSize: 44, color: '#0066cc' }}>
+        <div style={{ display: 'flex', marginTop: 20, fontSize: 44, color: '#6e6e73' }}>
           {product ? formatRupiah(product.price) : siteConfig.tagline}
         </div>
       </div>

@@ -23,7 +23,6 @@
   --secondary-foreground: #1d1d1f;
   --muted: #f5f5f7;
   --muted-foreground: #6e6e73;
-  --link: #0066cc;
   --accent: #b64400;
   --accent-foreground: #ffffff;
   --destructive: #d70015;
@@ -34,7 +33,7 @@
   --warning-foreground: #ffffff;
   --border: #e5e5ea;
   --input: #86868b;
-  --ring: #0066cc;
+  --ring: #1d1d1f;
 }
 
 .dark {
@@ -51,7 +50,6 @@
   --secondary-foreground: #f5f5f7;
   --muted: #1c1c1e;
   --muted-foreground: #a1a1a6;
-  --link: #2997ff;
   --accent: #ff9f4a;
   --accent-foreground: #000000;
   --destructive: #ff6961;
@@ -62,7 +60,7 @@
   --warning-foreground: #000000;
   --border: #38383a;
   --input: #86868b;
-  --ring: #2997ff;
+  --ring: #f5f5f7;
 }
 
 @theme inline {
@@ -88,7 +86,6 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-link: var(--link);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -100,6 +97,60 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+}
+
+/* Links look like a seam: stitches at rest, a solid thread drawn on hover. */
+@utility link-stitch {
+  padding-bottom: 2px;
+  background-image:
+    linear-gradient(currentColor, currentColor),
+    repeating-linear-gradient(90deg, var(--color-input) 0 4px, transparent 4px 8px);
+  background-position:
+    0 100%,
+    0 100%;
+  background-repeat: no-repeat;
+  background-size:
+    0 1.5px,
+    100% 1px;
+  box-decoration-break: clone;
+  transition: background-size 300ms ease-out;
+
+  &:hover,
+  a:hover &,
+  button:hover &,
+  a:focus-visible &,
+  button:focus-visible & {
+    background-size:
+      100% 1.5px,
+      100% 1px;
+  }
+}
+
+/* Loading placeholder with a soft sweep. */
+@utility skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--skeleton-bg, var(--color-muted));
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--color-background) 65%, transparent),
+      transparent
+    );
+    animation: skeleton-sweep 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-sweep {
+  to {
+    transform: translateX(100%);
+  }
 }
 
 @layer base {

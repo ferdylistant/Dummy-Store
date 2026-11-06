@@ -976,6 +976,12 @@ export function ClothingRailHero({
           ))}
         </div>
 
+        {!size.width && (
+          <div aria-hidden="true" className="absolute inset-x-0 bottom-6 flex justify-center gap-5 overflow-hidden lg:gap-8" style={{ top: railY + 36 }}>
+            {items.map((item) => <span key={item.id} className="skeleton block h-full w-12 shrink-0 rounded-2xl" />)}
+          </div>
+        )}
+
         {items.map((item, i) => {
           const kind = item.kind ?? "tee";
           const color = item.color ?? "var(--color-muted-foreground)";
@@ -995,7 +1001,7 @@ export function ClothingRailHero({
               aria-describedby={`${uid}-caption`}
               aria-pressed={turned}
               className="absolute left-0 cursor-pointer rounded-xl outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
-              style={{ top: railY - (HOOK_TOP / VB_H) * h, width: boxW, height: h, zIndex: turned ? 30 : 10 + i, visibility: lifted === i ? "hidden" : undefined, transform: `translate3d(${((sim.current.x[i] ?? 0) - boxW / 2).toFixed(2)}px,0,0)` }}
+              style={{ top: railY - (HOOK_TOP / VB_H) * h, width: boxW, height: h, zIndex: turned ? 30 : 10 + i, visibility: lifted === i || !size.width ? "hidden" : undefined, transform: `translate3d(${((sim.current.x[i] ?? 0) - boxW / 2).toFixed(2)}px,0,0)` }}
               onFocus={() => { setFocusIndex(i); if (pointer.current.id < 0) { stop(); choose(i); } }}
               onClick={(event) => { const pending = pendingOpen.current; pendingOpen.current = -1; if (event.detail === 0 || pending === i) open(i); }}
             >

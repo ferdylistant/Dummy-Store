@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { InfoPage } from '@/components/layout/info-page'
 import { RETURN_DAYS } from '@/lib/pricing'
 import { siteConfig } from '@/lib/site'
+import { SHARE_IMAGE } from '@/lib/seo'
 
 const DESCRIPTION = `Ketentuan yang berlaku saat berbelanja di ${siteConfig.name}.`
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   title: 'Syarat dan Ketentuan',
   description: DESCRIPTION,
   alternates: { canonical: '/syarat-ketentuan' },
-  openGraph: { title: 'Syarat dan Ketentuan', description: DESCRIPTION, url: '/syarat-ketentuan' },
+  openGraph: { title: 'Syarat dan Ketentuan', description: DESCRIPTION, url: '/syarat-ketentuan', images: [SHARE_IMAGE] },
 }
 
 export default function TermsPage() {

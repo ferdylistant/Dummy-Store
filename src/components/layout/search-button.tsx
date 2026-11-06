@@ -52,9 +52,9 @@ export function SearchButton() {
                 <Link
                   href={item.href}
                   onClick={close}
-                  className="flex min-h-11 items-center font-medium hover:text-link"
+                  className="flex min-h-11 items-center font-medium"
                 >
-                  {item.label}
+                  <span className="link-stitch">{item.label}</span>
                 </Link>
               </li>
             ))}

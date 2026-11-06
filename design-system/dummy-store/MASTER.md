@@ -27,7 +27,7 @@ Toko ini punya satu benda khas, yaitu label baju yang digantung. Motif ini yang 
 - **Hanya untuk satu CTA terpenting di halaman brand:** hero beranda dan halaman 404. Tombol fungsional seperti tambah ke keranjang tetap memakai pill biasa.
 - **Rel pakaian** di hero beranda adalah elemen utama, dan label harganya memakai bahasa bentuk yang sama.
 - **Logo dan favicon** memakai bentuk label yang sama.
-- **Jahitan:** progres checkout digambar sebagai garis jahitan yang menjadi benang utuh. Pakai hanya untuk progres.
+- **Jahitan:** garis putus-putus yang menjadi benang utuh. Dipakai untuk progres checkout dan tautan teks.
 
 ## 3. Warna
 
@@ -48,7 +48,6 @@ Selalu pakai token semantik. Jangan menulis hex atau warna bawaan Tailwind seper
 | `secondary-foreground` | `#1D1D1F` | `#F5F5F7` | Teks di atas secondary |
 | `muted` | `#F5F5F7` | `#1C1C1E` | Tile produk, footer, skeleton |
 | `muted-foreground` | `#6E6E73` | `#A1A1A6` | Teks pendukung |
-| `link` | `#0066CC` | `#2997FF` | Tautan teks, status aktif |
 | `accent` | `#B64400` | `#FF9F4A` | Teks label promo, "Baru", "Hemat" |
 | `accent-foreground` | `#FFFFFF` | `#000000` | Teks di atas accent |
 | `destructive` | `#D70015` | `#FF6961` | Error, hapus |
@@ -59,12 +58,13 @@ Selalu pakai token semantik. Jangan menulis hex atau warna bawaan Tailwind seper
 | `warning-foreground` | `#FFFFFF` | `#000000` | Teks di atas warning |
 | `border` | `#E5E5EA` | `#38383A` | Garis tipis dekoratif |
 | `input` | `#86868B` | `#86868B` | Garis field form |
-| `ring` | `#0066CC` | `#2997FF` | Focus ring |
+| `ring` | `#1D1D1F` | `#F5F5F7` | Focus ring |
 
 Aturan penggunaan:
 
 - Satu layar hanya punya satu aksi utama `primary`.
 - Label produk memakai teks `accent` kecil di atas nama produk, bukan badge di atas gambar.
+- Jangan memakai warna biru untuk tautan. Tautan dibedakan lewat garis jahitan, bukan warna.
 - `border` hanya untuk pemisah. Batas field form wajib `input` agar kontrasnya minimal 3:1.
 - Status tidak boleh hanya dibedakan warna. Tambahkan teks atau ikon.
 
@@ -164,7 +164,7 @@ Dasar: `buttonClasses()` di `src/components/ui/button.tsx`. Semua tombol berbent
 | Outline | `variant="outline"`, terisi dari bawah saat hover | Filter, kembali, aksi netral |
 | Ghost | `bg-transparent hover:bg-muted` | Navigasi, ikon |
 | Destructive | `bg-destructive text-destructive-foreground hover:bg-destructive/90` | Hapus |
-| Tautan | `text-link hover:underline` dengan ikon chevron | Aksi sekunder di hero dan section |
+| Tautan | Teks di dalam `<span className="link-stitch">`, dengan chevron bila mengarah ke halaman lain | Aksi sekunder dan tautan dalam teks |
 
 | Ukuran | Tinggi | Kelas |
 | --- | --- | --- |
@@ -190,7 +190,10 @@ Aturan:
   - Hover hanya gambar `scale-[1.03]`, durasi 200ms.
 - **Tile kategori:** `rounded-3xl bg-muted p-6 lg:p-8`, dengan judul di atas dan gambar di bawah.
 - **Panel keranjang dan checkout:** `rounded-xl border border-border bg-card`, padding `p-4` lalu `md:p-6`.
-- **Skeleton:** `animate-pulse rounded-xl bg-muted` dengan ukuran sama seperti konten akhir.
+- **Skeleton:** pakai `Skeleton`, `SkeletonLine`, dan `SkeletonRegion` dari `src/components/ui/skeleton.tsx`.
+  - Tiap halaman punya skeleton sendiri yang mengikuti struktur aslinya, dengan kelas grid dan tinggi baris yang sama, agar tidak ada lompatan saat konten masuk.
+  - Kalau struktur halaman berubah, ubah skeleton-nya juga.
+  - Di atas latar `muted`, set `--skeleton-bg` ke `var(--color-border)`.
 
 Hindari glassmorphism, gradien dekoratif, dan bayangan pada kartu.
 

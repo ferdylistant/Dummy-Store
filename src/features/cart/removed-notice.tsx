@@ -30,9 +30,9 @@ export function RemovedNotice({ className }: { className?: string }) {
           <button
             type="button"
             onClick={undoRemove}
-            className="min-h-11 shrink-0 cursor-pointer px-1 font-semibold text-link underline underline-offset-4"
+            className="min-h-11 shrink-0 cursor-pointer px-1 font-semibold"
           >
-            Batalkan
+            <span className="link-stitch">Batalkan</span>
           </button>
         </p>
       )}

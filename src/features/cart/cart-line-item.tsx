@@ -45,7 +45,7 @@ export function CartLineItem({
             <Link
               href={`/produk/${line.product.slug}`}
               onClick={onNavigate}
-              className="font-medium hover:text-link"
+              className="font-medium transition-colors duration-200 hover:text-muted-foreground"
             >
               {line.product.name}
             </Link>
