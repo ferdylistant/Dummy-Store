@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { connection } from 'next/server'
 import { productImageUrl } from '@/lib/seo'
 import { absoluteUrl } from '@/lib/site'
 import { getAllProducts, getCategories } from '@/services/products'
@@ -14,6 +15,8 @@ const STATIC_PATHS = [
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  await connection()
+
   const [products, categories] = await Promise.all([getAllProducts(), getCategories()])
 
   return [

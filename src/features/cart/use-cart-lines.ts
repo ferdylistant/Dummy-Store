@@ -16,17 +16,25 @@ export function useCartLines() {
   const hydrated = useCartHydrated()
   const items = useCart((state) => state.items)
   const [products, setProducts] = useState<Product[] | null>(null)
+  const [isError, setIsError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const ids = useMemo(() => [...new Set(items.map((item) => item.productId))].join(','), [items])
 
   useEffect(() => {
     let active = true
-    getProductsByIds(ids ? ids.split(',') : []).then((result) => {
-      if (active) setProducts(result)
-    })
+    getProductsByIds(ids ? ids.split(',') : [])
+      .then((result) => {
+        if (!active) return
+        setProducts(result)
+        setIsError(false)
+      })
+      .catch(() => {
+        if (active) setIsError(true)
+      })
     return () => {
       active = false
     }
-  }, [ids])
+  }, [ids, attempt])
 
   const lines = useMemo(() => {
     const result: CartLine[] = []
@@ -49,6 +57,8 @@ export function useCartLines() {
     lines,
     subtotal: lines.reduce((sum, line) => sum + line.lineTotal, 0),
     count: lines.reduce((sum, line) => sum + line.quantity, 0),
-    isLoading: !hydrated || products === null,
+    isLoading: !hydrated || (products === null && !isError),
+    isError,
+    retry: () => setAttempt((value) => value + 1),
   }
 }

@@ -23,7 +23,7 @@ export default async function CheckoutSuccessPage(props: PageProps<'/checkout/be
         </p>
       )}
       <p className="mt-2 max-w-prose leading-relaxed text-muted-foreground">
-        Ini pesanan contoh, jadi tidak ada pembayaran atau pengiriman sungguhan.
+        Pesanan Anda tersimpan. Pembayaran belum aktif, jadi belum ada tagihan sungguhan.
       </p>
       <Link href="/produk" className={buttonClasses({ className: 'mt-6' })}>
         Lanjut Belanja

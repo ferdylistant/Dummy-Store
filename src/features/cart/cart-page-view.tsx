@@ -5,12 +5,13 @@ import { AnimatePresence } from 'motion/react'
 import Link from 'next/link'
 import { buttonClasses } from '@/components/ui/button'
 import { CartLineItem } from './cart-line-item'
+import { CartLoadError } from './cart-load-error'
 import { OrderSummary } from './order-summary'
 import { RemovedNotice } from './removed-notice'
 import { useCartLines } from './use-cart-lines'
 
 export function CartPageView() {
-  const { lines, subtotal, isLoading } = useCartLines()
+  const { lines, subtotal, isLoading, isError, retry } = useCartLines()
 
   if (isLoading) {
     return (
@@ -20,6 +21,8 @@ export function CartPageView() {
       </div>
     )
   }
+
+  if (isError) return <CartLoadError onRetry={retry} />
 
   return (
     <>

@@ -1,15 +1,16 @@
 import { ImageResponse } from 'next/og'
 import { formatRupiah } from '@/lib/format'
 import { siteConfig } from '@/lib/site'
-import { getAllProducts, getProductBySlug } from '@/services/products'
+import { getProductBySlug } from '@/services/products'
 
 export const alt = 'Produk Dummy Store'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
-export async function generateStaticParams() {
-  const products = await getAllProducts()
-  return products.map((product) => ({ slug: product.slug }))
+export const revalidate = 60
+
+export function generateStaticParams() {
+  return []
 }
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {

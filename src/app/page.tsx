@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, CreditCard, RotateCcw, Ruler, Truck } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { connection } from 'next/server'
 import { JsonLd } from '@/components/seo/json-ld'
 import { buttonClasses } from '@/components/ui/button'
 import { Container } from '@/components/ui/container'
@@ -58,6 +59,9 @@ const TILE_LAYOUT = [
 ]
 
 export default async function HomePage() {
+  // Renders per request, because the catalog lives in the API and not in the build.
+  await connection()
+
   const [categories, featured, newest, railProducts] = await Promise.all([
     getCategories(),
     getFeaturedProducts(8),

@@ -9,6 +9,7 @@ import { Drawer } from '@/components/ui/drawer'
 import { formatRupiah } from '@/lib/format'
 import { FREE_SHIPPING_MIN } from '@/lib/pricing'
 import { CartLineItem } from './cart-line-item'
+import { CartLoadError } from './cart-load-error'
 import { RemovedNotice } from './removed-notice'
 import { useCart } from './store'
 import { useCartLines } from './use-cart-lines'
@@ -16,7 +17,7 @@ import { useCartLines } from './use-cart-lines'
 export function CartDrawer() {
   const isOpen = useCart((state) => state.isOpen)
   const closeCart = useCart((state) => state.closeCart)
-  const { lines, subtotal, count } = useCartLines()
+  const { lines, subtotal, count, isError, retry } = useCartLines()
   const remaining = FREE_SHIPPING_MIN - subtotal
 
   useEffect(() => {
@@ -57,7 +58,9 @@ export function CartDrawer() {
       }
     >
       <RemovedNotice className="m-4 mb-0" />
-      {lines.length > 0 ? (
+      {isError ? (
+        <CartLoadError onRetry={retry} />
+      ) : lines.length > 0 ? (
         <ul className="relative divide-y divide-border px-4">
           <AnimatePresence initial={false} mode="popLayout">
             {lines.map((line) => (

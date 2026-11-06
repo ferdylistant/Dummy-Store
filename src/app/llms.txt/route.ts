@@ -1,10 +1,11 @@
+import { connection } from 'next/server'
 import { absoluteUrl, siteConfig } from '@/lib/site'
 import { getCategories } from '@/services/products'
 
-export const dynamic = 'force-static'
-
 /** Plain summary of the store for AI assistants and answer engines. */
 export async function GET() {
+  await connection()
+
   const categories = await getCategories()
   const lines = [
     `# ${siteConfig.name}`,

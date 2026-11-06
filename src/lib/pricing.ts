@@ -8,7 +8,7 @@ export const SHIPPING_OPTIONS = {
 
 export type ShippingMethod = keyof typeof SHIPPING_OPTIONS
 
-/** Display estimate only. The backend must calculate the final amount. */
+/** Display estimate only. server/src/pricing.ts decides the amount charged. */
 export function shippingCost(subtotal: number, method: ShippingMethod) {
   if (method === 'reguler' && subtotal >= FREE_SHIPPING_MIN) return 0
   return SHIPPING_OPTIONS[method].cost

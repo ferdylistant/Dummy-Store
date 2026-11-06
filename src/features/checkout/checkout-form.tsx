@@ -8,12 +8,14 @@ import { useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Button, buttonClasses } from '@/components/ui/button'
 import { TextAreaField, TextField } from '@/components/ui/text-field'
+import { CartLoadError } from '@/features/cart/cart-load-error'
 import { OrderSummary } from '@/features/cart/order-summary'
 import { useCart } from '@/features/cart/store'
 import { useCartLines } from '@/features/cart/use-cart-lines'
 import { formatRupiah } from '@/lib/format'
 import { shippingCost, SHIPPING_OPTIONS } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
+import { ApiError } from '@/services/api'
 import { createOrder } from '@/services/orders'
 import { checkoutSchema, type CheckoutValues } from './schema'
 
@@ -66,9 +68,11 @@ export function CheckoutForm() {
   const router = useRouter()
   const items = useCart((state) => state.items)
   const clear = useCart((state) => state.clear)
-  const { lines, subtotal, isLoading } = useCartLines()
-  const [submitError, setSubmitError] = useState(false)
+  const { lines, subtotal, isLoading, isError, retry } = useCartLines()
+  const [submitError, setSubmitError] = useState('')
   const [ordered, setOrdered] = useState(false)
+  // Stays the same across retries, so a lost response cannot create two orders.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const {
     register,
@@ -86,14 +90,16 @@ export function CheckoutForm() {
   const shipping = shippingCost(subtotal, shippingMethod)
 
   async function onSubmit(customer: CheckoutValues) {
-    setSubmitError(false)
+    setSubmitError('')
     try {
-      const { orderNumber } = await createOrder({ customer, items })
+      const { orderNumber } = await createOrder({ customer, items }, idempotencyKey)
       setOrdered(true)
       clear()
       router.replace(`/checkout/berhasil?pesanan=${encodeURIComponent(orderNumber)}`)
-    } catch {
-      setSubmitError(true)
+    } catch (error) {
+      setSubmitError(
+        error instanceof ApiError ? error.message : 'Pesanan gagal dibuat. Coba lagi.',
+      )
     }
   }
 
@@ -104,6 +110,8 @@ export function CheckoutForm() {
       </div>
     )
   }
+
+  if (isError) return <CartLoadError onRetry={retry} />
 
   if (lines.length === 0 && !ordered) {
     return (
@@ -126,7 +134,7 @@ export function CheckoutForm() {
       <div className="grid gap-6 lg:col-span-2">
         <p className="flex gap-2 rounded-lg bg-secondary p-3 text-sm text-secondary-foreground">
           <Info aria-hidden="true" className="size-5 shrink-0" />
-          Ini mode contoh. Pesanan belum diproses dan tidak ada pembayaran sungguhan.
+          Pembayaran belum aktif. Pesanan tersimpan, tetapi belum ada tagihan sungguhan.
         </p>
 
         <FormSection title="Kontak">
@@ -273,7 +281,7 @@ export function CheckoutForm() {
         <OrderSummary subtotal={subtotal} shipping={shipping} />
         {submitError && (
           <p role="alert" className="mt-3 text-sm text-destructive">
-            Pesanan gagal dibuat. Periksa koneksi Anda, lalu coba lagi.
+            {submitError}
           </p>
         )}
         <Button type="submit" size="lg" disabled={isSubmitting} className="mt-4 w-full">

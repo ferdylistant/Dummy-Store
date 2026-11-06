@@ -1,4 +1,4 @@
-import type { Category, Product, ProductColor } from '@/types/catalog'
+import type { Category, Product, ProductColor } from '../types.js'
 
 const color = {
   hitam: { name: 'Hitam', hex: '#1F2328' },

@@ -5,16 +5,13 @@ import { Container } from '@/components/ui/container'
 import { ProductCard } from '@/features/products/product-card'
 import { ProductView } from '@/features/products/product-view'
 import { productJsonLd } from '@/lib/seo'
-import {
-  getAllProducts,
-  getCategory,
-  getProductBySlug,
-  getRelatedProducts,
-} from '@/services/products'
+import { getCategory, getProductBySlug, getRelatedProducts } from '@/services/products'
 
-export async function generateStaticParams() {
-  const products = await getAllProducts()
-  return products.map((product) => ({ slug: product.slug }))
+export const revalidate = 60
+
+/** Pages render on first request and then stay cached, so builds never need the API. */
+export function generateStaticParams() {
+  return []
 }
 
 export async function generateMetadata(props: PageProps<'/produk/[slug]'>) {

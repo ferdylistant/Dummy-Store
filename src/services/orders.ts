@@ -1,5 +1,6 @@
-import type { CheckoutValues } from '@/features/checkout/schema'
 import type { CartItem } from '@/features/cart/store'
+import type { CheckoutValues } from '@/features/checkout/schema'
+import { apiPost } from './api'
 
 export interface OrderRequest {
   customer: CheckoutValues
@@ -8,14 +9,15 @@ export interface OrderRequest {
 
 export interface OrderResult {
   orderNumber: string
+  subtotal: number
+  shippingCost: number
+  total: number
 }
 
-/*
- * Mock only. The Express API must recalculate prices, stock, and totals from
- * its own data, because anything sent from the browser can be manipulated.
+/**
+ * Sends product references only. The API works out prices, stock, and totals
+ * from its own data. The key stops a retry from creating a second order.
  */
-export async function createOrder(order: OrderRequest): Promise<OrderResult> {
-  await new Promise((resolve) => setTimeout(resolve, 600))
-  const suffix = Date.now().toString(36).toUpperCase().slice(-6)
-  return { orderNumber: `DS-${order.items.length}${suffix}` }
+export function createOrder(order: OrderRequest, idempotencyKey: string) {
+  return apiPost<OrderResult>('/orders', order, { 'Idempotency-Key': idempotencyKey })
 }
