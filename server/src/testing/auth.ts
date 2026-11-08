@@ -15,5 +15,13 @@ export async function testAuth(db: Database, baseURL = 'http://127.0.0.1', origi
     rateLimit: false,
   })
   await migrateAuth(auth)
-  return { auth, mails }
+  const adminAuth = createAuth(db, {
+    baseURL,
+    secret: 'test-secret-that-is-long-enough-for-hmac-0123456789',
+    trustedOrigins: origins,
+    mailer: { send: async (email) => void mails.push(email) },
+    rateLimit: false,
+    scope: 'admin',
+  })
+  return { auth, adminAuth, mails }
 }

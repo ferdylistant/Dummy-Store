@@ -87,6 +87,8 @@ export interface AppOptions {
   /** Orders allowed per IP address per minute. */
   ordersPerMinute?: number
   auth: Auth
+  /** The dashboard's own sign in. Without it the admin API is not mounted. */
+  adminAuth?: Auth
   /** Null when Biteship is not configured. Address forms then use plain fields. */
   regions?: RegionProvider | null
   google?: boolean
@@ -120,7 +122,7 @@ export function createApp(db: Database, options: AppOptions) {
   )
   // Better Auth takes the client IP from x-forwarded-for. Replace whatever the
   // client sent with the address Express trusts, so a session's IP cannot be faked.
-  app.use('/api/auth', (req, _res, next) => {
+  app.use(['/api/auth', '/api/admin-auth'], (req, _res, next) => {
     // IPv6 loopback becomes 127.0.0.1, since Better Auth stores IPv6 as its /64 network.
     const ip = req.ip === '::1' ? '127.0.0.1' : req.ip?.replace(/^::ffff:/, '')
     if (ip) req.headers['x-forwarded-for'] = ip
@@ -129,6 +131,7 @@ export function createApp(db: Database, options: AppOptions) {
   })
   // Better Auth reads the raw body itself, so it is mounted before the JSON parser.
   app.all('/api/auth/{*path}', toNodeHandler(options.auth))
+  if (options.adminAuth) app.all('/api/admin-auth/{*path}', toNodeHandler(options.adminAuth))
   app.use(express.json({ limit: '32kb' }))
 
   app.get('/api/config', (_req, res) => {
@@ -152,7 +155,8 @@ export function createApp(db: Database, options: AppOptions) {
   })
 
   app.use('/api/me', accountRouter(db, options.auth))
-  app.use('/api/admin', adminRouter(db, options.auth, mediaUrl, options.onStoreChange))
+  // Admin requests read the dashboard's cookie only, never the store's.
+  if (options.adminAuth) app.use('/api/admin', adminRouter(db, options.adminAuth, mediaUrl, options.onStoreChange))
 
   // Pictures never change under the same id, so browsers may keep them a year.
   app.get('/api/media/:id', async (req, res) => {

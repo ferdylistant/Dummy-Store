@@ -33,6 +33,14 @@ const auth = createAuth(db, {
   google,
 })
 await migrateAuth(auth)
+// Same accounts, separate sessions: the dashboard signs in on /api/admin-auth.
+const adminAuth = createAuth(db, {
+  baseURL: config.apiUrl,
+  secret: config.authSecret,
+  trustedOrigins: config.adminUrl ? [config.adminUrl] : [],
+  mailer: createMailer(config.mail),
+  scope: 'admin',
+})
 
 if (config.admin) {
   const admin = await ensureAdmin(auth, config.admin)
@@ -52,6 +60,7 @@ const app = createApp(db, {
   siteUrl: config.siteUrl,
   payments,
   auth,
+  adminAuth,
   regions,
   shippingRates,
   google: Boolean(google),

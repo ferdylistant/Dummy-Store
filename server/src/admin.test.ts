@@ -51,8 +51,8 @@ describe('admin', () => {
   }
   const admin = (path: string, init: Parameters<typeof call>[1] = {}) => call(path, { ...init, cookie: adminCookie })
 
-  async function signIn(email: string, password: string) {
-    const response = await fetch(`${base}/api/auth/sign-in/email`, {
+  async function signIn(email: string, password: string, path = '/api/admin-auth') {
+    const response = await fetch(`${base}${path}/sign-in/email`, {
       method: 'POST',
       headers: { Origin: TEST_ORIGIN, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -91,7 +91,7 @@ describe('admin', () => {
 
   before(async () => {
     db = await openDatabase(':memory:')
-    const { auth } = await testAuth(db)
+    const { auth, adminAuth } = await testAuth(db)
     await ensureAdmin(auth, { email: 'admin@example.com', password: 'password' })
     const real = createMidtransGateway({ serverKey: 'test', clientKey: 'test', isProduction: false })
     const payments = {
@@ -100,7 +100,7 @@ describe('admin', () => {
       getStatus: async () => null,
     }
     await new Promise<void>((resolve) => {
-      server = createApp(db, { corsOrigins: [TEST_ORIGIN], auth, payments, ordersPerMinute: 1000 }).listen(0, () => resolve())
+      server = createApp(db, { corsOrigins: [TEST_ORIGIN], auth, adminAuth, payments, ordersPerMinute: 1000 }).listen(0, () => resolve())
     })
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
     adminCookie = await signIn('admin@example.com', 'password')
@@ -112,7 +112,7 @@ describe('admin', () => {
     assert.ok(signUp.status === 200 || signUp.status === 400)
     const { sql } = await import('kysely')
     await sql`UPDATE "user" SET "emailVerified" = true WHERE email = 'pelanggan@example.com'`.execute(db)
-    customerCookie = await signIn('pelanggan@example.com', 'rahasia-panjang-123')
+    customerCookie = await signIn('pelanggan@example.com', 'rahasia-panjang-123', '/api/auth')
   })
 
   after(async () => {
@@ -123,7 +123,34 @@ describe('admin', () => {
   it('keeps guests and shoppers out', async () => {
     assert.equal((await call('/api/admin/overview')).status, 401)
     const shopper = await call('/api/admin/overview', { cookie: customerCookie })
+    assert.equal(shopper.status, 401, 'a store session never opens the admin API')
+    assert.equal((await admin('/api/admin/overview')).status, 200)
+  })
+
+  it('keeps the dashboard and store sessions apart', async () => {
+    const send = (path: string, body: unknown) =>
+      fetch(base + path, { method: 'POST', headers: { Origin: TEST_ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+    // A shopper cannot sign in to the dashboard, and gets no cookie trying.
+    const shopper = await send('/api/admin-auth/sign-in/email', { email: 'pelanggan@example.com', password: 'rahasia-panjang-123' })
     assert.equal(shopper.status, 403, 'the role sent while signing up was ignored')
+    assert.equal(((await shopper.json()) as { code?: string }).code, 'NOT_ADMIN')
+    assert.equal(shopper.headers.getSetCookie().length, 0)
+
+    // Nobody signs up through the dashboard.
+    const signUp = await send('/api/admin-auth/sign-up/email', { name: 'X', email: 'x@example.com', password: 'rahasia-panjang-123' })
+    assert.notEqual(signUp.status, 200)
+
+    // The admin signed in to the store is still a guest in the dashboard, and the other way round.
+    const storeAdmin = await signIn('admin@example.com', 'password', '/api/auth')
+    assert.match(storeAdmin, /^ds\./)
+    assert.match(adminCookie, /^dsa\./)
+    assert.equal((await call('/api/admin/overview', { cookie: storeAdmin })).status, 401)
+    assert.equal((await call('/api/me/addresses', { cookie: adminCookie })).status, 401)
+    assert.equal((await call('/api/me/addresses', { cookie: storeAdmin })).status, 200)
+
+    // Signing out of the store leaves the dashboard signed in.
+    await fetch(`${base}/api/auth/sign-out`, { method: 'POST', headers: { Origin: TEST_ORIGIN, Cookie: storeAdmin } })
     assert.equal((await admin('/api/admin/overview')).status, 200)
   })
 

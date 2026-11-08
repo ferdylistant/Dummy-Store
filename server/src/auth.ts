@@ -1,4 +1,6 @@
 import { betterAuth } from 'better-auth'
+import { APIError } from 'better-auth/api'
+import { sql } from 'kysely'
 import { getMigrations } from 'better-auth/db/migration'
 import { fromNodeHeaders } from 'better-auth/node'
 import type { IncomingHttpHeaders } from 'node:http'
@@ -13,19 +15,31 @@ export interface AuthOptions {
   google?: { clientId: string; clientSecret: string }
   /** Off in tests that make many requests in a row. */
   rateLimit?: boolean
+  /**
+   * "admin" is the dashboard's own sign in: /api/admin-auth with "dsa" cookies,
+   * so it never shares a session with the store. Only admins get a session
+   * there, and nobody can sign up.
+   */
+  scope?: 'store' | 'admin'
 }
 
+export const AUTH_PATHS = { store: '/api/auth', admin: '/api/admin-auth' } as const
+const COOKIE_PREFIX = { store: 'ds', admin: 'dsa' } as const
+
 export function createAuth(db: Database, options: AuthOptions) {
+  const scope = options.scope ?? 'store'
+  const admin = scope === 'admin'
   return betterAuth({
     appName: 'Dummy Store',
     // The same Kysely instance as the store, so one database holds everything.
     database: { db, type: 'postgres' },
     baseURL: options.baseURL,
-    basePath: '/api/auth',
+    basePath: AUTH_PATHS[scope],
     secret: options.secret,
     trustedOrigins: options.trustedOrigins,
     emailAndPassword: {
       enabled: true,
+      disableSignUp: admin,
       requireEmailVerification: true,
       minPasswordLength: 8,
       revokeSessionsOnPasswordReset: true,
@@ -44,8 +58,8 @@ export function createAuth(db: Database, options: AuthOptions) {
       },
     },
     emailVerification: {
-      sendOnSignUp: true,
-      sendOnSignIn: true,
+      sendOnSignUp: !admin,
+      sendOnSignIn: !admin,
       autoSignInAfterVerification: true,
       expiresIn: 24 * 60 * 60,
       async sendVerificationEmail({ user, url }) {
@@ -62,7 +76,7 @@ export function createAuth(db: Database, options: AuthOptions) {
         )
       },
     },
-    socialProviders: options.google
+    socialProviders: options.google && !admin
       ? { google: { ...options.google, prompt: 'select_account' } }
       : undefined,
     account: { accountLinking: { enabled: true, trustedProviders: ['google'] } },
@@ -73,7 +87,22 @@ export function createAuth(db: Database, options: AuthOptions) {
       },
     },
     rateLimit: { enabled: options.rateLimit ?? true, window: 60, max: 30 },
-    advanced: { cookiePrefix: 'ds' },
+    advanced: { cookiePrefix: COOKIE_PREFIX[scope] },
+    databaseHooks: admin
+      ? {
+          session: {
+            create: {
+              // The dashboard refuses shoppers before any session exists.
+              async before(session) {
+                const { rows } = await sql<{ role: string | null }>`SELECT role FROM "user" WHERE id = ${session.userId}`.execute(db)
+                if (rows[0]?.role !== ADMIN_ROLE) {
+                  throw new APIError('FORBIDDEN', { code: 'NOT_ADMIN', message: 'Akun ini bukan admin.' })
+                }
+              },
+            },
+          },
+        }
+      : undefined,
   })
 }
 

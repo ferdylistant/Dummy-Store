@@ -69,6 +69,7 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 | GET | `/api/regions/children?parent=` | Daftar provinsi, lalu kota/kabupaten, kecamatan, dan desa/kelurahan beserta kode posnya |
 | GET | `/api/regions?q=` | Cari area Biteship (cadangan untuk ongkir nanti) |
 | * | `/api/auth/*` | Daftar, masuk, konfirmasi email, lupa password (Better Auth) |
+| * | `/api/admin-auth/*` | Masuk dashboard. Akun sama, sesi terpisah (cookie `dsa`), hanya admin, tanpa daftar |
 | GET, POST, PUT, DELETE | `/api/me/addresses` | Alamat tersimpan milik pengguna yang masuk |
 | GET, PUT | `/api/me/preferences` | Pengaturan notifikasi |
 | GET | `/api/me/orders` | Riwayat pesanan |
