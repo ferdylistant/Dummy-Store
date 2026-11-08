@@ -1,9 +1,11 @@
 'use client'
 
-import { RotateCcw, Truck } from 'lucide-react'
-import { AnimatePresence, m } from 'motion/react'
+import { RotateCcw, ShoppingBag, Truck } from 'lucide-react'
+import { AnimatePresence, m, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { Button, ButtonArrow } from '@/components/ui/button'
 import { PaperTag } from '@/components/ui/paper-tag'
 import { QuantityStepper } from '@/components/ui/quantity-stepper'
 import { MAX_QUANTITY, useCart } from '@/features/cart/store'
@@ -12,27 +14,36 @@ import { FREE_SHIPPING_MIN, RETURN_DAYS } from '@/lib/pricing'
 import { siteConfig } from '@/lib/site'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/types/catalog'
-import { AddToCartButton } from './add-to-cart-button'
+import { AddedNotice, CartFlight, cartTarget, type AddedItem, type Flight } from './cart-feedback'
 import { ProductImage } from './product-image'
 import { ProductPrice } from './product-price'
 
 const ONE_SIZE = 'Satu ukuran'
-/** Long enough to read the confirmation before the cart covers the button. */
-const CONFIRM_MS = 500
+/** How long the "in your bag" tag stays before it lifts away. */
+const NOTICE_MS = 4000
 
 export function ProductView({ product }: { product: Product }) {
+  const router = useRouter()
+  const reduced = useReducedMotion()
   const add = useCart((state) => state.add)
-  const openCart = useCart((state) => state.openCart)
   const hasSizes = product.sizes[0] !== ONE_SIZE
   const [color, setColor] = useState(product.colors[0])
   const [size, setSize] = useState(hasSizes ? '' : ONE_SIZE)
   const [quantity, setQuantity] = useState(1)
   const [sizeError, setSizeError] = useState(false)
-  const [added, setAdded] = useState(false)
   const [swings, setSwings] = useState(0)
-  const confirmTimer = useRef<number | undefined>(undefined)
+  const [flight, setFlight] = useState<Flight | null>(null)
+  const [notice, setNotice] = useState<AddedItem | null>(null)
+  const pending = useRef<AddedItem | null>(null)
+  const noticeTimer = useRef<number | undefined>(undefined)
 
-  useEffect(() => () => window.clearTimeout(confirmTimer.current), [])
+  useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
+
+  function showNotice(item: AddedItem) {
+    window.clearTimeout(noticeTimer.current)
+    setNotice(item)
+    noticeTimer.current = window.setTimeout(() => setNotice(null), NOTICE_MS)
+  }
 
   const isSoldOut = (colorName: string, sizeName: string) =>
     product.soldOut?.includes(`${colorName}|${sizeName}`) ?? false
@@ -40,22 +51,44 @@ export function ProductView({ product }: { product: Product }) {
   const allSoldOut = product.sizes.every((item) => isSoldOut(color.name, item))
   const cannotBuy = selectedSoldOut || allSoldOut
 
-  function handleAdd() {
-    if (added) return
+  /** Adds the chosen variant, or points at the size picker when none is chosen. */
+  function addSelected() {
     if (!size) {
       setSizeError(true)
-      document.getElementById('pilih-ukuran')?.scrollIntoView({ block: 'center' })
-      return
+      document.getElementById('pilih-ukuran')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      return false
     }
     add({ productId: product.id, color: color.name, size, quantity })
-    setAdded(true)
-    confirmTimer.current = window.setTimeout(() => {
-      setAdded(false)
-      openCart()
-    }, CONFIRM_MS)
+    return true
   }
 
-  const buttonLabel = cannotBuy ? 'Stok Habis' : 'Tambah ke Keranjang'
+  function handleAdd(event: MouseEvent<HTMLButtonElement>) {
+    if (!addSelected()) return
+    const item = {
+      id: Date.now(),
+      name: product.name,
+      color: color.name,
+      colorHex: color.hex,
+      size,
+      quantity,
+      price: product.price,
+      top: Math.max(0, document.querySelector('header')?.getBoundingClientRect().bottom ?? 56),
+    }
+    const to = cartTarget()
+    if (reduced || !to) {
+      showNotice(item)
+      return
+    }
+    const rect = event.currentTarget.getBoundingClientRect()
+    pending.current = item
+    setFlight({ id: item.id, from: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }, to })
+  }
+
+  function handleBuyNow() {
+    if (addSelected()) router.push('/checkout')
+  }
+
+  const soldOutLabel = 'Stok Habis'
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:gap-12">
@@ -199,17 +232,24 @@ export function ProductView({ product }: { product: Product }) {
           />
         </div>
 
-        <AddToCartButton
-          size="lg"
-          added={added}
-          label={buttonLabel}
-          disabled={cannotBuy}
-          onClick={handleAdd}
-          className="mt-6 hidden w-full lg:inline-flex"
-        />
-        <p role="status" className="sr-only">
-          {added ? `${product.name} ditambahkan ke keranjang` : ''}
-        </p>
+        <div className="mt-6 hidden gap-3 lg:grid lg:grid-cols-[auto_1fr]">
+          {cannotBuy ? (
+            <Button size="lg" disabled className="col-span-2 h-14">
+              {soldOutLabel}
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleAdd} className="h-14 px-6">
+                <ShoppingBag aria-hidden="true" className="size-5" />
+                Keranjang
+              </Button>
+              <Button variant="action" onClick={handleBuyNow}>
+                Beli Sekarang
+                <ButtonArrow />
+              </Button>
+            </>
+          )}
+        </div>
 
         <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
           <li className="flex gap-2">
@@ -258,16 +298,48 @@ export function ProductView({ product }: { product: Product }) {
         data-buy-bar
         className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border bg-card p-3 lg:hidden"
       >
-        <p className="font-semibold tabular-nums">{formatRupiah(product.price)}</p>
-        <AddToCartButton
-          added={added}
-          label={cannotBuy ? buttonLabel : 'Tambah'}
-          aria-label={added ? undefined : buttonLabel}
-          disabled={cannotBuy}
-          onClick={handleAdd}
-          className="flex-1"
-        />
+        <p className="min-w-0 text-sm leading-tight">
+          <span className="block text-muted-foreground">Harga</span>
+          <span className="block font-semibold tabular-nums">{formatRupiah(product.price)}</span>
+        </p>
+        {cannotBuy ? (
+          <Button disabled className="h-14 flex-1">
+            {soldOutLabel}
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleAdd}
+              aria-label="Tambah ke keranjang"
+              className="ml-auto size-14"
+            >
+              <ShoppingBag aria-hidden="true" className="size-5" />
+            </Button>
+            {/* No arrow here, so the label stays on one line at 360px. */}
+            <Button onClick={handleBuyNow} className="h-14 flex-1 px-4 whitespace-nowrap">
+              Beli Sekarang
+            </Button>
+          </>
+        )}
       </div>
+
+      <CartFlight
+        flight={flight}
+        onLanded={() => {
+          setFlight(null)
+          if (pending.current) showNotice(pending.current)
+          pending.current = null
+        }}
+      />
+      <AddedNotice
+        item={notice}
+        onClose={() => {
+          window.clearTimeout(noticeTimer.current)
+          setNotice(null)
+        }}
+      />
     </div>
   )
 }

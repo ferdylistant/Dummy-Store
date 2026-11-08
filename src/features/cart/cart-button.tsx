@@ -15,6 +15,7 @@ export function CartButton() {
       variant="ghost"
       size="icon"
       className="relative -mr-2 lg:mr-0"
+      data-cart-target
       aria-label={count > 0 ? `Buka keranjang, ${count} barang` : 'Buka keranjang, kosong'}
       onClick={openCart}
     >
