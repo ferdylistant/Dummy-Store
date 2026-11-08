@@ -238,13 +238,15 @@ export function CheckoutForm() {
         { customer, items, saveAddress: Boolean(session) && newAddress && saveAddress },
         idempotencyKey,
       )
-      if (!order.payment) {
+      // Transfers, QR codes, and e-wallets are shown on the order page with the store's own UI.
+      if (!order.payment || order.payment.instructions.kind !== 'snap') {
         finish(order.orderNumber)
         return
       }
 
+      // Cards open Midtrans, because the bank's 3D Secure check must run on its page.
       await loadSnap(order.payment.scriptUrl, order.payment.clientKey)
-      const outcome = await openSnap(order.payment.token)
+      const outcome = await openSnap(order.payment.instructions.token)
       if (outcome === 'success' || outcome === 'pending') finish(order.orderNumber)
       else if (outcome === 'close') setUnfinished(true)
       else setSubmitError('Pembayaran gagal diproses. Coba lagi atau pilih metode lain.')
@@ -546,12 +548,12 @@ export function CheckoutForm() {
                 <div className="mt-6 grid gap-2 rounded-2xl bg-muted p-4 text-sm text-muted-foreground">
                   <p className="flex items-center gap-2">
                     <ShieldCheck aria-hidden="true" className="size-4 shrink-0" />
-                    Diproses aman oleh Midtrans. Jendela pembayaran langsung membuka cara yang Anda
-                    pilih.
+                    Diproses aman oleh Midtrans. Nomor virtual account atau kode QR langsung tampil
+                    setelah Anda menekan Bayar Sekarang.
                   </p>
                   <p className="flex items-center gap-2">
                     <Clock aria-hidden="true" className="size-4 shrink-0" />
-                    Batas pembayaran 24 jam setelah pesanan dibuat.
+                    Batas bayar 24 jam untuk transfer, 1 jam untuk QRIS dan dompet digital.
                   </p>
                 </div>
 

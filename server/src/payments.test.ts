@@ -46,7 +46,7 @@ function fakeGateway() {
     async createTransaction(request) {
       requests.push(request)
       if (gateway.fail) throw new Error('Midtrans down')
-      return { token: `token-${request.orderId}`, redirectUrl: `https://pay.test/${request.orderId}` }
+      return { kind: 'va', bank: 'bca', number: `va-${request.orderId}` }
     },
     async getStatus(orderId) {
       return statuses.get(orderId) ?? null
@@ -117,18 +117,27 @@ describe('payments', () => {
     db.exec("UPDATE variants SET stock = 25 WHERE NOT (color = 'Navy' AND product_id = 'p007' AND size IN ('S', 'M'))")
   })
 
-  it('creates a Snap payment for the server total', async () => {
+  it('creates a payment for the server total', async () => {
     const { status: code, body } = await post('/api/orders', { customer, items: [hoodie, mug] })
     assert.equal(code, 201)
     assert.equal(body.status, 'awaiting_payment')
-    assert.equal(body.payment.token, `token-${body.orderNumber}`)
+    assert.deepEqual(body.payment.instructions, { kind: 'va', bank: 'bca', number: `va-${body.orderNumber}` })
+    assert.equal(body.payment.method, 'bca_va')
     assert.equal(body.payment.clientKey, 'SB-Mid-client-test')
     const request = fake.requests[0]
     assert.equal(request.grossAmount, body.total)
     const itemSum = request.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
     assert.equal(itemSum, request.grossAmount, 'Midtrans rejects items that do not add up')
-    assert.equal(request.expiryHours, 24)
-    assert.equal(request.finishUrl, 'http://localhost:3000/checkout/berhasil')
+    assert.equal(request.expiryMinutes, 24 * 60)
+    assert.equal(request.method, 'bca_va')
+    assert.equal(request.finishUrl, `http://localhost:3000/checkout/berhasil?pesanan=${body.orderNumber}`)
+  })
+
+  it('holds stock for an hour when paying by QR', async () => {
+    const { body } = await post('/api/orders', { customer: { ...customer, paymentMethod: 'other_qris' }, items: [mug] })
+    assert.equal(fake.requests[0].expiryMinutes, 60)
+    const minutes = (Date.parse(body.expiresAt ?? (await (await fetch(`${base}/api/orders/${body.orderNumber}`)).json() as Json).expiresAt) - Date.now()) / 60_000
+    assert.ok(minutes > 58 && minutes <= 60, String(minutes))
   })
 
   it('lists shipping as its own item', async () => {
@@ -154,7 +163,7 @@ describe('payments', () => {
     const headers = { 'Idempotency-Key': 'satu-pesanan-saja' }
     const first = await post('/api/orders', { customer, items: [hoodie] }, headers)
     const second = await post('/api/orders', { customer, items: [hoodie] }, headers)
-    assert.equal(second.body.payment.token, first.body.payment.token)
+    assert.deepEqual(second.body.payment.instructions, first.body.payment.instructions)
     assert.equal(fake.requests.length, 1)
   })
 
@@ -238,7 +247,8 @@ describe('payments', () => {
     const { body } = await post('/api/orders', { customer, items: [hoodie] })
     const waiting = (await (await fetch(`${base}/api/orders/${body.orderNumber}`)).json()) as Json
     assert.equal(waiting.status, 'awaiting_payment')
-    assert.ok(waiting.paymentUrl)
+    assert.equal(waiting.payment.number, `va-${body.orderNumber}`)
+    assert.equal(waiting.paymentMethod, 'bca_va')
     assert.equal(JSON.stringify(waiting).includes('budi'), false)
 
     fake.statuses.set(body.orderNumber, {
@@ -248,7 +258,7 @@ describe('payments', () => {
     })
     const paid = (await (await fetch(`${base}/api/orders/${body.orderNumber}`)).json()) as Json
     assert.equal(paid.status, 'paid')
-    assert.equal(paid.paymentUrl, null)
+    assert.equal(paid.payment, null)
   })
 
   it('answers 404 for a malformed or unknown order number', async () => {

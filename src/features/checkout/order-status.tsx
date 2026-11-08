@@ -9,10 +9,11 @@ import { useCart } from '@/features/cart/store'
 import { formatRupiah } from '@/lib/format'
 import { ApiError } from '@/services/api'
 import { getOrderStatus, type OrderStatusView } from '@/services/orders'
+import { PaymentPanel } from './payment-panel'
 
-const POLL_MS = 4000
-/** Stops checking after about three minutes. A reload starts it again. */
-const MAX_POLLS = 45
+const POLL_MS = 5000
+/** Stops checking after about half an hour. A reload starts it again. */
+const MAX_POLLS = 360
 
 const dateTime = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' })
 
@@ -151,18 +152,22 @@ export function OrderStatus({
         </Panel>,
       )
     case 'awaiting_payment':
+      if (order.payment) {
+        return region(
+          <PaymentPanel
+            orderNumber={order.orderNumber}
+            total={order.total}
+            expiresAt={order.expiresAt}
+            instructions={order.payment}
+          />,
+        )
+      }
       return region(
         <Panel
           icon={<Clock aria-hidden="true" className="size-14" />}
           title="Menunggu pembayaran"
           actions={
             <>
-              {order.paymentUrl && (
-                <a href={order.paymentUrl} className={buttonClasses({ variant: 'action' })}>
-                  Lanjutkan Pembayaran
-                  <ButtonArrow />
-                </a>
-              )}
               {shopAgain}
             </>
           }

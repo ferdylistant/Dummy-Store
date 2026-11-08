@@ -2,18 +2,26 @@ import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { transaction, type Database } from './db/index.js'
 import { HttpError } from './errors.js'
-import type { PaymentGateway, PaymentStatus } from './payments/midtrans.js'
+import type {
+  PaymentGateway,
+  PaymentInstructions,
+  PaymentMethod,
+  PaymentStatus,
+} from './payments/midtrans.js'
 import { shippingCost } from './pricing.js'
 
 const MAX_QUANTITY = 10
-export const PAYMENT_EXPIRY_HOURS = 24
+/** Transfers get a day. QR codes and e-wallets are paid on the spot, so stock is held for an hour. */
+export function paymentExpiryMinutes(method: PaymentMethod) {
+  return ['other_qris', 'gopay', 'shopeepay'].includes(method) ? 60 : 24 * 60
+}
 /** Time after the payment deadline before an unpaid order is released. */
 const EXPIRY_GRACE_MS = 5 * 60_000
 
 export type OrderStatus = 'awaiting_payment' | 'paid' | 'expired' | 'cancelled' | 'refunded'
 
-/** Midtrans Snap payment codes the store offers. */
-export const PAYMENT_METHODS = [
+/** Midtrans payment codes the store offers. */
+export const PAYMENT_METHODS: readonly [PaymentMethod, ...PaymentMethod[]] = [
   'bca_va',
   'bni_va',
   'bri_va',
@@ -72,7 +80,12 @@ export interface OrderResult {
   subtotal: number
   shippingCost: number
   total: number
-  payment: { token: string; redirectUrl: string; clientKey: string; scriptUrl: string } | null
+  payment: {
+    method: PaymentMethod
+    instructions: PaymentInstructions
+    clientKey: string
+    scriptUrl: string
+  } | null
 }
 
 interface OrderRow {
@@ -82,9 +95,14 @@ interface OrderRow {
   subtotal: number
   shipping_cost: number
   total: number
-  snap_token: string | null
-  payment_url: string | null
+  payment_method: PaymentMethod
+  payment_details: string | null
   expires_at: string | null
+}
+
+function instructionsOf(row: OrderRow): PaymentInstructions | null {
+  if (row.status !== 'awaiting_payment' || !row.payment_details) return null
+  return JSON.parse(row.payment_details) as PaymentInstructions
 }
 
 function newOrderNumber() {
@@ -105,28 +123,29 @@ function mergeItems(items: OrderInput['items']) {
 function findOrder(db: Database, column: 'order_number' | 'idempotency_key', value: string) {
   return db
     .prepare(
-      `SELECT id, order_number, status, subtotal, shipping_cost, total, snap_token, payment_url, expires_at
+      `SELECT id, order_number, status, subtotal, shipping_cost, total, payment_method, payment_details,
+         expires_at
        FROM orders WHERE ${column} = ?`,
     )
     .get(value) as OrderRow | undefined
 }
 
 function toResult(row: OrderRow, gateway: PaymentGateway): OrderResult {
+  const instructions = instructionsOf(row)
   return {
     orderNumber: row.order_number,
     status: row.status,
     subtotal: row.subtotal,
     shippingCost: row.shipping_cost,
     total: row.total,
-    payment:
-      row.status === 'awaiting_payment' && row.snap_token && row.payment_url
-        ? {
-            token: row.snap_token,
-            redirectUrl: row.payment_url,
-            clientKey: gateway.clientKey,
-            scriptUrl: gateway.scriptUrl,
-          }
-        : null,
+    payment: instructions
+      ? {
+          method: row.payment_method,
+          instructions,
+          clientKey: gateway.clientKey,
+          scriptUrl: gateway.scriptUrl,
+        }
+      : null,
   }
 }
 
@@ -168,7 +187,9 @@ function reserveOrder(db: Database, input: OrderInput, idempotencyKey?: string, 
     const shipping = shippingCost(subtotal, input.customer.shippingMethod)
     const total = subtotal + shipping
     const orderNumber = newOrderNumber()
-    const expiresAt = new Date(Date.now() + PAYMENT_EXPIRY_HOURS * 3_600_000).toISOString()
+    const expiresAt = new Date(
+      Date.now() + paymentExpiryMinutes(input.customer.paymentMethod) * 60_000,
+    ).toISOString()
     const { customer } = input
 
     const order = db
@@ -282,16 +303,12 @@ export async function createOrder(
         city: customer.city,
         postalCode: customer.postalCode,
       },
-      expiryHours: PAYMENT_EXPIRY_HOURS,
-      finishUrl: `${options.siteUrl}/checkout/berhasil`,
-      enabledPayments: [customer.paymentMethod],
+      expiryMinutes: paymentExpiryMinutes(customer.paymentMethod),
+      finishUrl: `${options.siteUrl}/checkout/berhasil?pesanan=${order.orderNumber}`,
+      method: customer.paymentMethod,
     })
 
-    db.prepare('UPDATE orders SET snap_token = ?, payment_url = ? WHERE id = ?').run(
-      payment.token,
-      payment.redirectUrl,
-      order.id,
-    )
+    db.prepare('UPDATE orders SET payment_details = ? WHERE id = ?').run(JSON.stringify(payment), order.id)
   } catch (error) {
     releaseOrder(db, order.id, 'cancelled')
     console.error('Midtrans transaction failed', error)
@@ -385,7 +402,8 @@ export async function orderStatus(db: Database, gateway: PaymentGateway | null, 
     status: order.status,
     total: order.total,
     expiresAt: order.expires_at,
-    paymentUrl: order.status === 'awaiting_payment' ? order.payment_url : null,
+    paymentMethod: order.payment_method,
+    payment: instructionsOf(order),
   }
 }
 

@@ -11,14 +11,27 @@ export interface OrderRequest {
   saveAddress?: boolean
 }
 
+/** What the store shows the shopper to pay. Mirrors server/src/payments/midtrans.ts. */
+export type PaymentInstructions =
+  | { kind: 'va'; bank: 'bca' | 'bni' | 'bri' | 'permata'; number: string }
+  | { kind: 'bill'; billerCode: string; billKey: string }
+  | { kind: 'qr'; provider: 'qris' | 'gopay'; qrString: string | null; qrUrl: string | null; appUrl: string | null }
+  | { kind: 'app'; provider: 'shopeepay'; appUrl: string }
+  | { kind: 'snap'; token: string; redirectUrl: string }
+
 export interface OrderResult {
   orderNumber: string
   status: OrderStatus
   subtotal: number
   shippingCost: number
   total: number
-  /** Snap details while the order waits for payment. */
-  payment: { token: string; redirectUrl: string; clientKey: string; scriptUrl: string } | null
+  /** How to pay, while the order waits for payment. */
+  payment: {
+    method: string
+    instructions: PaymentInstructions
+    clientKey: string
+    scriptUrl: string
+  } | null
 }
 
 export interface OrderStatusView {
@@ -26,7 +39,8 @@ export interface OrderStatusView {
   status: OrderStatus
   total: number
   expiresAt: string | null
-  paymentUrl: string | null
+  paymentMethod: string
+  payment: PaymentInstructions | null
 }
 
 /**

@@ -57,7 +57,7 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 | GET | `/api/products/facets` | Pilihan ukuran dan warna |
 | GET | `/api/products/:slug` | Detail produk |
 | GET | `/api/products/:slug/related` | Produk terkait |
-| POST | `/api/orders` | Membuat pesanan dan transaksi Midtrans |
+| POST | `/api/orders` | Membuat pesanan dan tagihan Midtrans |
 | GET | `/api/orders/:nomor` | Status pesanan, tanpa data pembeli |
 | POST | `/api/payments/midtrans/notification` | Notifikasi pembayaran dari Midtrans |
 | GET | `/api/config` | Fitur yang aktif: pembayaran, pencarian wilayah, login Google |
@@ -75,7 +75,11 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 2. Jalankan ulang `npm run dev`. Log API menampilkan `Midtrans sandbox` jika kunci terbaca.
 3. Atur **Payment Notification URL** di dashboard Midtrans ke `https://<alamat-publik>/api/payments/midtrans/notification`. Saat pengembangan lokal, pakai tunnel seperti ngrok.
 
-Tanpa notifikasi pun status tetap diperbarui, karena halaman status pesanan mengecek ke Midtrans selama pesanan belum dibayar. Pesanan yang tidak dibayar dalam 24 jam dibatalkan dan stoknya dikembalikan.
+Toko memakai Midtrans Core API, jadi nomor virtual account, kode bayar Mandiri, kode QR (QRIS, GoPay), dan tombol ShopeePay tampil di halaman toko sendiri lengkap dengan cara bayar per bank. Hanya kartu kredit yang membuka jendela Midtrans, karena verifikasi OTP 3D Secure harus berjalan di halaman bank. Batas bayar 24 jam untuk transfer dan 1 jam untuk QRIS serta dompet digital.
+
+Di mode Sandbox, tagihan dibayar lewat simulator Midtrans di https://simulator.sandbox.midtrans.com. Untuk Production, Core API perlu diaktifkan dulu lewat dashboard atau tim Midtrans.
+
+Tanpa notifikasi pun status tetap diperbarui, karena halaman status pesanan mengecek ke Midtrans selama pesanan belum dibayar. Pesanan yang lewat batas bayar dibatalkan dan stoknya dikembalikan.
 
 ## Akun, email, dan wilayah
 

@@ -13,7 +13,7 @@ function testGateway(): PaymentGateway {
   const real = createMidtransGateway({ serverKey: 'test', clientKey: 'test', isProduction: false })
   return {
     ...real,
-    createTransaction: async (request) => ({ token: request.orderId, redirectUrl: 'https://pay.test' }),
+    createTransaction: async (request) => ({ kind: 'va', bank: 'bca', number: request.orderId }),
     getStatus: async () => null,
   }
 }

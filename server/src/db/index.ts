@@ -122,6 +122,8 @@ const ORDER_COLUMNS = {
   user_id: 'TEXT',
   district: 'TEXT',
   area_id: 'TEXT',
+  /** Virtual account number, QR code, or Snap token, as JSON. */
+  payment_details: 'TEXT',
 }
 
 function migrate(db: Database) {

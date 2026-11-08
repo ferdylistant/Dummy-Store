@@ -104,7 +104,7 @@ describe('accounts', () => {
     const real = createMidtransGateway({ serverKey: 'test', clientKey: 'test', isProduction: false })
     const payments = {
       ...real,
-      createTransaction: async (request: { orderId: string }) => ({ token: request.orderId, redirectUrl: 'https://pay.test' }),
+      createTransaction: async (request: { orderId: string }) => ({ kind: 'va' as const, bank: 'bca' as const, number: request.orderId }),
       getStatus: async () => null,
     }
     await new Promise<void>((resolve) => {
