@@ -60,6 +60,10 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 | POST | `/api/orders` | Membuat pesanan dan tagihan Midtrans |
 | GET | `/api/orders/:nomor` | Status pesanan, tanpa data pembeli |
 | POST | `/api/payments/midtrans/notification` | Notifikasi pembayaran dari Midtrans |
+| GET | `/api/settings` | Pengaturan toko yang tampil di toko: nama, email, logo, teks promo, ongkir tetap |
+| GET | `/api/home` | Isi beranda: rel hero, kategori dengan produk sampul, unggulan, baru, dan diskon |
+| GET | `/api/media/:id` | Gambar yang diunggah dari dashboard |
+| * | `/api/admin/*` | Dashboard admin: ringkasan, produk, kategori, pesanan, pelanggan, pengaturan. Wajib akun admin |
 | GET | `/api/config` | Fitur yang aktif: pembayaran, pencarian wilayah, login Google |
 | GET | `/api/regions/children?parent=` | Daftar provinsi, lalu kota/kabupaten, kecamatan, dan desa/kelurahan beserta kode posnya |
 | GET | `/api/regions?q=` | Cari area Biteship (cadangan untuk ongkir nanti) |

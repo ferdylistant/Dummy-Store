@@ -6,6 +6,9 @@ import helmet from 'helmet'
 import { sql } from 'kysely'
 import { z } from 'zod'
 import { accountRouter, requireVillage, saveAddress } from './account.js'
+import { adminRouter } from './admin.js'
+import { readMedia } from './media.js'
+import { publicSettings } from './settings.js'
 import { sessionUser, type Auth } from './auth.js'
 import type { Database } from './db/index.js'
 import { errorHandler, HttpError, notFoundHandler } from './errors.js'
@@ -20,6 +23,7 @@ import type { PaymentGateway } from './payments/midtrans.js'
 import { regionChildren, type RegionProvider } from './regions.js'
 import {
   findProductBySlug,
+  homeContent,
   listCategories,
   findCategory,
   productFacets,
@@ -34,7 +38,7 @@ const list = z
 const flag = z.enum(['true', 'false']).transform((value) => value === 'true')
 
 const productQuerySchema = z.object({
-  category: z.enum(['baju', 'celana', 'bandana', 'merchandise']).optional(),
+  category: z.string().max(80).optional(),
   q: z.string().max(80).optional(),
   sizes: list.optional(),
   colors: list.optional(),
@@ -90,12 +94,15 @@ export interface AppOptions {
    * the API faces the internet directly and forwarded headers are ignored.
    */
   trustProxy?: number
+  /** The API's own public address, used for picture links. Relative links without it. */
+  publicUrl?: string
 }
 
 export function createApp(db: Database, options: AppOptions) {
   const app = express()
   app.set('trust proxy', options.trustProxy ?? 0)
   const payments = options.payments ?? null
+  const mediaUrl = (id: string) => `${options.publicUrl ?? ''}/api/media/${id}`
   const regions = options.regions ?? null
 
   app.use(helmet())
@@ -140,6 +147,29 @@ export function createApp(db: Database, options: AppOptions) {
   })
 
   app.use('/api/me', accountRouter(db, options.auth))
+  app.use('/api/admin', adminRouter(db, options.auth, mediaUrl))
+
+  // Pictures never change under the same id, so browsers may keep them a year.
+  app.get('/api/media/:id', async (req, res) => {
+    const media = await readMedia(db, req.params.id)
+    if (!media) throw new HttpError(404, 'not_found', 'Gambar tidak ditemukan.')
+    res.set({
+      'Content-Type': media.mime,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      // The store and dashboard run on other origins and show these pictures.
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    })
+    res.end(Buffer.from(media.data))
+  })
+
+  app.get('/api/settings', async (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=60')
+    res.json(await publicSettings(db, mediaUrl))
+  })
+
+  app.get('/api/home', async (_req, res) => {
+    res.json(await homeContent(db, mediaUrl))
+  })
 
   app.get('/health', async (_req, res) => {
     await sql`SELECT 1`.execute(db)
@@ -157,27 +187,27 @@ export function createApp(db: Database, options: AppOptions) {
   })
 
   app.get('/api/products', async (req, res) => {
-    res.json(await queryProducts(db, productQuerySchema.parse(req.query)))
+    res.json(await queryProducts(db, mediaUrl, productQuerySchema.parse(req.query)))
   })
 
   app.get('/api/products/facets', async (req, res) => {
     const { category } = productQuerySchema.pick({ category: true }).parse(req.query)
-    res.json(await productFacets(db, category))
+    res.json(await productFacets(db, mediaUrl, category))
   })
 
   app.get('/api/products/:slug', async (req, res) => {
-    const product = await findProductBySlug(db, req.params.slug)
+    const product = await findProductBySlug(db, mediaUrl, req.params.slug)
     if (!product) throw new HttpError(404, 'not_found', 'Produk tidak ditemukan.')
     res.json(product)
   })
 
   app.get('/api/products/:slug/related', async (req, res) => {
-    const product = await findProductBySlug(db, req.params.slug)
+    const product = await findProductBySlug(db, mediaUrl, req.params.slug)
     if (!product) throw new HttpError(404, 'not_found', 'Produk tidak ditemukan.')
     const { limit } = z
       .object({ limit: z.coerce.number().int().min(1).max(12).default(4) })
       .parse(req.query)
-    res.json({ items: await relatedProducts(db, product, limit) })
+    res.json({ items: await relatedProducts(db, mediaUrl, product, limit) })
   })
 
   app.post('/api/orders', limiter(options.ordersPerMinute ?? 20), async (req, res) => {

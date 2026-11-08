@@ -57,7 +57,9 @@ export const categories: Category[] = [
   },
 ]
 
-export const products: Product[] = [
+type SeedProduct = Omit<Product, 'images' | 'weightGrams' | 'railImage'>
+
+export const products: SeedProduct[] = [
   {
     id: 'p001',
     slug: 'kaos-heavyweight',
@@ -398,3 +400,21 @@ export const products: Product[] = [
     sizes: ONE_SIZE,
   },
 ]
+
+/** First guesses for shipping. The dashboard can correct each product. */
+export const ESTIMATED_GRAMS: Record<string, number> = {
+  tee: 220,
+  shirt: 280,
+  sweater: 500,
+  hoodie: 650,
+  jacket: 900,
+  pants: 550,
+  shorts: 300,
+  bandana: 60,
+  cap: 150,
+  tote: 200,
+  mug: 400,
+  socks: 80,
+  pin: 30,
+  sticker: 20,
+}

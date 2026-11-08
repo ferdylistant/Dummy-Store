@@ -10,6 +10,7 @@ import type {
   PaymentStatus,
 } from './payments/midtrans.js'
 import { shippingCost } from './pricing.js'
+import { getSettings } from './settings.js'
 import { regionCodeSchema, type ResolvedVillage } from './regions.js'
 
 const MAX_QUANTITY = 10
@@ -190,7 +191,7 @@ function reserveOrder(
     }
 
     const subtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
-    const shipping = shippingCost(subtotal, input.customer.shippingMethod)
+    const shipping = shippingCost(subtotal, input.customer.shippingMethod, await getSettings(trx, 'store'))
     const total = subtotal + shipping
     const orderNumber = newOrderNumber()
     const expiresAt = new Date(Date.now() + paymentExpiryMinutes(input.customer.paymentMethod) * 60_000)
@@ -436,4 +437,11 @@ export async function expireOverdueOrders(db: Database, gateway: PaymentGateway 
     .execute()
   for (const { order_number } of overdue) await orderStatus(db, gateway, order_number)
   return overdue.length
+}
+
+/** For the dashboard: cancels an order still waiting for payment and returns its stock. */
+export async function cancelUnpaidOrder(db: Database, orderNumber: string) {
+  const order = await findOrder(db, 'order_number', orderNumber)
+  if (!order || order.status !== 'awaiting_payment') return false
+  return releaseOrder(db, order.id, 'cancelled')
 }

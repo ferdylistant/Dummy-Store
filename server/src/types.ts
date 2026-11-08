@@ -1,4 +1,5 @@
-export type CategorySlug = 'baju' | 'celana' | 'bandana' | 'merchandise'
+/** Categories are managed in the dashboard, so any slug may exist. */
+export type CategorySlug = string
 
 export type SortKey = 'rekomendasi' | 'terbaru' | 'termurah' | 'termahal'
 
@@ -9,6 +10,8 @@ export interface Category {
   intro: string
   art: string
   artColor: string
+  /** The product pictured on the category tile, when one is chosen. */
+  coverProductId?: string
 }
 
 export interface ProductColor {
@@ -36,6 +39,18 @@ export interface Product {
   featured?: boolean
   railKind?: string
   image?: string
+  /** Photos in display order. Empty means the illustration is shown. */
+  images: ProductImage[]
+  /** Cut-out picture for the hanging rail. */
+  railImage?: string
+  weightGrams: number
+}
+
+export interface ProductImage {
+  url: string
+  alt: string
+  width: number
+  height: number
 }
 
 export interface ProductQuery {

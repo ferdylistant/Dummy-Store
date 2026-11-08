@@ -1,5 +1,5 @@
 import { createApp } from './app.js'
-import { createAuth, migrateAuth } from './auth.js'
+import { createAuth, ensureAdmin, migrateAuth } from './auth.js'
 import { config } from './config.js'
 import { importLegacySqlite } from './db/import-sqlite.js'
 import { openDatabase } from './db/index.js'
@@ -32,6 +32,11 @@ const auth = createAuth(db, {
 })
 await migrateAuth(auth)
 
+if (config.admin) {
+  const admin = await ensureAdmin(auth, config.admin)
+  if (admin.created) console.log(`Akun admin dibuat: ${config.admin.email}`)
+}
+
 const imported = await importLegacySqlite(db)
 if (imported) console.log('Data lama dari data/store.db dipindahkan ke PostgreSQL:', imported)
 
@@ -46,6 +51,7 @@ const app = createApp(db, {
   regions,
   google: Boolean(google),
   trustProxy: config.trustProxy,
+  publicUrl: config.apiUrl,
 })
 
 const server = app.listen(config.port, () => {

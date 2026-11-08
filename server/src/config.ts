@@ -2,10 +2,17 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-const corsOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean)
+/** The admin dashboard. Development runs it on port 3001. */
+const adminUrl = (process.env.ADMIN_URL ?? (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001')).replace(/\/$/, '')
+
+// The store, plus the dashboard so it can call the API and sign in.
+const corsOrigins = [
+  ...new Set(
+    [...(process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','), adminUrl]
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  ),
+]
 
 const port = Number(process.env.PORT ?? 4000)
 /**
@@ -36,7 +43,18 @@ function authSecret() {
 export const config = {
   port,
   databaseUrl,
+  /**
+   * The dashboard account. Development uses admin@example.com with "password".
+   * Production creates one only when both are set.
+   */
+  admin:
+    process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD
+      ? { email: process.env.ADMIN_EMAIL.trim(), password: process.env.ADMIN_PASSWORD }
+      : process.env.NODE_ENV === 'production'
+        ? null
+        : { email: 'admin@example.com', password: 'password' },
   corsOrigins,
+  adminUrl,
   /** Proxy hops in front of the API, such as 1 behind a load balancer. */
   trustProxy: Number(process.env.TRUST_PROXY ?? 0) || 0,
   apiUrl: (process.env.API_URL ?? `http://localhost:${port}`).replace(/\/$/, ''),
