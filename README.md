@@ -90,12 +90,12 @@ Semua kunci di bawah ini diisi di `server/.env`. Tanpa kunci, fitur tetap jalan 
 - **Wilayah (Biteship)**: isi `BITESHIP_API_KEY`. Kecamatan, kota, provinsi, dan kode pos lalu dipilih dari hasil pencarian. Tanpa kunci, kolom wilayah diisi manual.
 - **BETTER_AUTH_SECRET**: wajib di production, minimal 32 karakter acak. Saat pengembangan, rahasia dibuat otomatis di `server/data/.auth-secret`.
 
-Aturan akses dijaga di  (dari cookie sesi) dan diperiksa lagi di setiap halaman:
+Aturan akses dijaga di `src/proxy.ts` (dari cookie sesi) dan diperiksa lagi di setiap halaman:
 
--  hanya untuk yang sudah masuk. Tamu diarahkan ke .
-- , , , dan  tanpa token hanya untuk tamu. Yang sudah masuk diarahkan ke akun.
+- `/akun/...` hanya untuk yang sudah masuk. Tamu diarahkan ke `/masuk?next=...`.
+- `/masuk`, `/daftar`, `/lupa-password`, dan `/atur-ulang-password` tanpa token hanya untuk tamu. Yang sudah masuk diarahkan ke akun.
 - Tautan reset password dari email tetap bisa dibuka walau sedang masuk.
-- Tujuan  hanya boleh halaman di situs ini (, diuji di ).
+- Tujuan `?next=` hanya boleh halaman di situs ini (`src/lib/safe-next.ts`, diuji dengan `npm run test:web`).
 - Data akun selalu diperiksa ulang oleh API, jadi proxy bukan satu-satunya pengaman.
 
 Checkout tetap bisa tanpa akun. Pembeli yang masuk bisa memakai alamat tersimpan dan menyimpan alamat baru.
