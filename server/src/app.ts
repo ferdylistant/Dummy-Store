@@ -84,10 +84,16 @@ export interface AppOptions {
   /** Null when Biteship is not configured. Address forms then use plain fields. */
   regions?: RegionProvider | null
   google?: boolean
+  /**
+   * Proxy hops in front of the API, passed to Express "trust proxy". Zero means
+   * the API faces the internet directly and forwarded headers are ignored.
+   */
+  trustProxy?: number
 }
 
 export function createApp(db: Database, options: AppOptions) {
   const app = express()
+  app.set('trust proxy', options.trustProxy ?? 0)
   const payments = options.payments ?? null
   const regions = options.regions ?? null
 
@@ -99,6 +105,15 @@ export function createApp(db: Database, options: AppOptions) {
       allowedHeaders: ['Content-Type', 'Idempotency-Key'],
     }),
   )
+  // Better Auth takes the client IP from x-forwarded-for. Replace whatever the
+  // client sent with the address Express trusts, so a session's IP cannot be faked.
+  app.use('/api/auth', (req, _res, next) => {
+    // IPv6 loopback becomes 127.0.0.1, since Better Auth stores IPv6 as its /64 network.
+    const ip = req.ip === '::1' ? '127.0.0.1' : req.ip?.replace(/^::ffff:/, '')
+    if (ip) req.headers['x-forwarded-for'] = ip
+    else delete req.headers['x-forwarded-for']
+    next()
+  })
   // Better Auth reads the raw body itself, so it is mounted before the JSON parser.
   app.all('/api/auth/{*path}', toNodeHandler(options.auth))
   app.use(express.json({ limit: '32kb' }))

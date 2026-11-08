@@ -3,8 +3,10 @@
 import { MapPin, Package, Zap } from 'lucide-react'
 import { m, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Container } from '@/components/ui/container'
+import { authClient } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 
 export type AuthMode = 'masuk' | 'daftar' | 'pulih'
@@ -123,6 +125,15 @@ export function AuthShell({
   footer?: ReactNode
 }) {
   const [name, setName] = useState('')
+  const router = useRouter()
+  const { data: session } = authClient.useSession()
+  const signedIn = Boolean(session)
+
+  // The proxy catches this first. When the API sits on another domain its
+  // cookie is invisible to the proxy, so the page checks as well.
+  useEffect(() => {
+    if (signedIn && mode !== 'pulih') router.replace(next ?? '/akun')
+  }, [signedIn, mode, next, router])
 
   return (
     <TagName.Provider value={setName}>

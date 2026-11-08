@@ -47,7 +47,10 @@ describe('accounts', () => {
       get cookie() {
         return cookie
       },
-      async call(path: string, init: { method?: string; body?: unknown; redirect?: 'manual' | 'follow' } = {}) {
+      async call(
+        path: string,
+        init: { method?: string; body?: unknown; redirect?: 'manual' | 'follow'; headers?: Record<string, string> } = {},
+      ) {
         const response = await fetch(path.startsWith('http') ? path : base + path, {
           method: init.method ?? (init.body ? 'POST' : 'GET'),
           redirect: init.redirect ?? 'follow',
@@ -55,6 +58,7 @@ describe('accounts', () => {
             Origin: TEST_ORIGIN,
             ...(init.body ? { 'Content-Type': 'application/json' } : {}),
             ...(cookie ? { Cookie: cookie } : {}),
+            ...init.headers,
           },
           body: init.body ? JSON.stringify(init.body) : undefined,
         })
@@ -275,6 +279,42 @@ describe('accounts', () => {
     assert.equal((await client().call('/api/regions?q=ab')).status, 422)
     const config = await client().call('/api/config')
     assert.deepEqual(config.body, { payments: true, regions: true, google: false })
+  })
+
+  it('lists sessions with their device and a real IP, and signs them out', async () => {
+    await verifiedUser('sesi@example.com')
+    const laptop = client()
+    const phone = client()
+    const tablet = client()
+    const desktopAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
+    const phoneAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile Safari/604.1'
+    const signIn = (who: ReturnType<typeof client>, agent: string) =>
+      who.call('/api/auth/sign-in/email', {
+        body: { email: 'sesi@example.com', password: PASSWORD },
+        // A client cannot choose the IP recorded for its session.
+        headers: { 'User-Agent': agent, 'X-Forwarded-For': '203.0.113.9' },
+      })
+    assert.equal((await signIn(laptop, desktopAgent)).status, 200)
+    assert.equal((await signIn(phone, phoneAgent)).status, 200)
+    assert.equal((await signIn(tablet, phoneAgent)).status, 200)
+
+    const sessions = (await laptop.call('/api/auth/list-sessions')).body as Json[]
+    const mine = sessions.filter((item) => item.userAgent === desktopAgent || item.userAgent === phoneAgent)
+    assert.equal(mine.length, 3)
+    for (const item of mine) {
+      assert.equal(item.ipAddress, '127.0.0.1')
+      assert.ok(item.token, 'each session carries the token used to revoke it')
+    }
+
+    const phoneSession = (await phone.call('/api/auth/get-session')).body.session
+    const revoked = await laptop.call('/api/auth/revoke-session', { body: { token: phoneSession.token } })
+    assert.equal(revoked.status, 200)
+    assert.equal((await phone.call('/api/auth/get-session')).body, null)
+    assert.ok((await tablet.call('/api/auth/get-session')).body.session)
+
+    await laptop.call('/api/auth/revoke-other-sessions', { body: {} })
+    assert.equal((await tablet.call('/api/auth/get-session')).body, null)
+    assert.ok((await laptop.call('/api/auth/get-session')).body.session, 'this device stays signed in')
   })
 
   it('refuses a payment method the store does not offer', async () => {

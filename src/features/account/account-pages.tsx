@@ -22,6 +22,7 @@ import {
   type Preferences,
 } from '@/services/account'
 import { AccountSection } from './account-shell'
+import { SessionList } from './session-list'
 import { OrderProgress, OrderThumb, StatusChip, orderDate, useOrderProducts } from './order-parts'
 
 function Saved({ show }: { show: boolean }) {
@@ -363,17 +364,7 @@ export function SecuritySection() {
           </form>
         )}
       </AccountSection>
-      <AccountSection title="Perangkat lain" description="Keluar dari semua perangkat selain yang sedang dipakai.">
-        <Button
-          variant="outline"
-          onClick={async () => {
-            await authClient.revokeOtherSessions()
-            setMessage('Semua perangkat lain sudah dikeluarkan.')
-          }}
-        >
-          Keluar dari Perangkat Lain
-        </Button>
-      </AccountSection>
+      <SessionList />
     </div>
   )
 }

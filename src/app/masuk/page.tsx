@@ -18,6 +18,8 @@ export default async function SignInPage(props: PageProps<'/masuk'>) {
       intro={
         params.reset
           ? 'Password berhasil diganti. Silakan masuk dengan password baru.'
+          : params.sesi
+          ? 'Sesi Anda sudah berakhir. Silakan masuk lagi.'
           : 'Lihat pesanan dan pakai alamat tersimpan saat checkout.'
       }
       footer={

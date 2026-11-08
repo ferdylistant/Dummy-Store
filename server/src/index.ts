@@ -41,6 +41,7 @@ const app = createApp(db, {
   auth,
   regions,
   google: Boolean(google),
+  trustProxy: config.trustProxy,
 })
 
 const server = app.listen(config.port, () => {

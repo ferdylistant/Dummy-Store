@@ -60,7 +60,7 @@ export function AccountShell({ children }: { children: ReactNode }) {
   const signingOut = useRef(false)
 
   useEffect(() => {
-    if (!isPending && !session && !signingOut.current) router.replace(`/masuk?next=${encodeURIComponent(pathname)}`)
+    if (!isPending && !session && !signingOut.current) router.replace(`/masuk?next=${encodeURIComponent(pathname)}&sesi=habis`)
   }, [isPending, session, pathname, router])
 
   if (!session) return <AccountSkeleton />

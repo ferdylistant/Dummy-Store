@@ -54,7 +54,8 @@ export function OrderProgress({ status }: { status: Status }) {
               <span
                 aria-hidden="true"
                 className={cn(
-                  'absolute top-3 right-1/2 left-[-50%] border-t-2',
+                  // Stops short of both circles, so the thread never runs into them.
+                  'absolute top-[11px] right-[calc(50%+16px)] left-[calc(-50%+16px)] border-t-2',
                   index <= current ? 'border-solid border-foreground' : 'border-dashed border-input',
                 )}
               />

@@ -33,6 +33,8 @@ export const config = {
   port,
   databasePath,
   corsOrigins,
+  /** Proxy hops in front of the API, such as 1 behind a load balancer. */
+  trustProxy: Number(process.env.TRUST_PROXY ?? 0) || 0,
   apiUrl: (process.env.API_URL ?? `http://localhost:${port}`).replace(/\/$/, ''),
   siteUrl: (process.env.SITE_URL ?? corsOrigins[0] ?? 'http://localhost:3000').replace(/\/$/, ''),
   authSecret: authSecret(),
