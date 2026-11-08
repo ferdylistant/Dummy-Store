@@ -34,7 +34,15 @@ export function createMailer(options: { resendApiKey: string; from: string }): M
         body: JSON.stringify({ from: options.from, ...email }),
       })
       if (!response.ok) {
-        throw new Error(`Resend ${response.status}: ${await response.text().catch(() => '')}`)
+        const detail = await response.text().catch(() => '')
+        // Sign up does not wait for the email, so the log is where a failure shows up.
+        console.error(`[email] Gagal mengirim ke ${email.to}. Resend ${response.status}: ${detail}`)
+        if (response.status === 403) {
+          console.error(
+            '[email] Periksa MAIL_FROM: alamat pengirim harus dari domain yang sudah diverifikasi di Resend, atau kosongkan untuk memakai onboarding@resend.dev.',
+          )
+        }
+        throw new Error(`Resend ${response.status}: ${detail}`)
       }
     },
   }
