@@ -11,6 +11,7 @@ export default async function ResetPasswordPage(props: PageProps<'/atur-ulang-pa
 
   return (
     <AuthShell
+      mode="pulih"
       title={valid ? 'Buat password baru' : 'Tautan tidak berlaku'}
       intro={valid ? undefined : 'Tautan ini sudah kedaluwarsa atau pernah dipakai. Minta tautan baru.'}
       footer={

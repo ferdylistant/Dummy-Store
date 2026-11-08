@@ -12,6 +12,8 @@ export default async function SignInPage(props: PageProps<'/masuk'>) {
 
   return (
     <AuthShell
+      mode="masuk"
+      next={next}
       title="Masuk"
       intro={
         params.reset
@@ -22,7 +24,7 @@ export default async function SignInPage(props: PageProps<'/masuk'>) {
         <>
           Belum punya akun?{' '}
           <Link href={`/daftar?next=${encodeURIComponent(next)}`} className="font-medium text-foreground">
-            <span className="link-stitch">Daftar</span>
+            <span className="link-stitch">Buat akun gratis</span>
           </Link>
         </>
       }

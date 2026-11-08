@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: 'Lupa Password', robots: { index: fal
 export default function ForgotPasswordPage() {
   return (
     <AuthShell
+      mode="pulih"
       title="Lupa password"
       intro="Tulis email akun Anda. Kami kirim tautan untuk membuat password baru."
       footer={

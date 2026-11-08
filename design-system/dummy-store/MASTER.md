@@ -30,6 +30,7 @@ Toko ini punya satu benda khas, yaitu label baju yang digantung. Motif ini yang 
 - **`PaperTag`** (`src/components/ui/paper-tag.tsx`): label kertas dengan sudut terpotong dan lubang. Dipakai untuk harga di gambar produk dan kategori di footer.
 - **FAQ:** `<details>` dengan utility `accordion` dan atribut `name`, pemisah jahitan yang menjadi benang utuh saat terbuka.
 - **Label kain:** panel `muted` dengan garis jahitan di dalamnya, untuk Detail Produk. Isinya hanya data produk yang benar.
+- **Kartu anggota:** label kertas besar yang tergantung di rel, di halaman Masuk, Daftar, dan pemulihan password (`AuthShell` di `src/features/auth/auth-shell.tsx`). Nama yang diketik di form Daftar ikut tertulis di label. Label berayun sekali saat muncul.
 - **Jahitan:** garis putus-putus yang menjadi benang utuh. Dipakai untuk progres checkout dan tautan teks.
 
 ## 3. Warna

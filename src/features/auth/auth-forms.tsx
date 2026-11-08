@@ -1,16 +1,17 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { MailCheck } from 'lucide-react'
+import { MailCheck, MailWarning } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useState } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { Button, ButtonArrow } from '@/components/ui/button'
 import { PasswordField } from '@/components/ui/password-field'
 import { TextField } from '@/components/ui/text-field'
 import { authClient, authErrorMessage } from '@/lib/auth-client'
+import { useTagName } from './auth-shell'
 import { GoogleButton } from './google-button'
 
 const email = z.email('Tulis email yang valid, misalnya nama@email.com.')
@@ -26,6 +27,49 @@ function FormError({ message }: { message: string }) {
     <p role="alert" className="rounded-xl bg-muted p-3 text-sm text-destructive">
       {message}
     </p>
+  )
+}
+
+const RESEND_SECONDS = 60
+
+/**
+ * Sends the confirmation link again. Starts cooling down, because the
+ * server has just sent one when this appears.
+ */
+function ResendVerification({ email: address, next }: { email: string; next: string }) {
+  const [wait, setWait] = useState(RESEND_SECONDS)
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (wait <= 0) return
+    const timer = window.setTimeout(() => setWait((value) => value - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [wait])
+
+  return (
+    <div className="mt-4">
+      <Button
+        variant="outline"
+        disabled={busy || wait > 0}
+        onClick={async () => {
+          setBusy(true)
+          setMessage('')
+          const { error: failure } = await authClient.sendVerificationEmail({
+            email: address,
+            callbackURL: `${origin()}${next}`,
+          })
+          setBusy(false)
+          setMessage(failure ? authErrorMessage(failure) : 'Tautan baru sudah dikirim.')
+          setWait(RESEND_SECONDS)
+        }}
+      >
+        {busy ? 'Mengirim...' : wait > 0 ? `Kirim ulang dalam ${wait} detik` : 'Kirim Ulang Tautan'}
+      </Button>
+      <p role="status" className="mt-2 min-h-5 text-sm text-muted-foreground">
+        {message}
+      </p>
+    </div>
   )
 }
 
@@ -48,6 +92,7 @@ function SentNotice({ email: address, children }: { email: string; children?: Re
 export function SignInForm({ next }: { next: string }) {
   const router = useRouter()
   const [error, setError] = useState('')
+  const [unverified, setUnverified] = useState('')
   const form = useForm({
     resolver: zodResolver(z.object({ email, password: z.string().min(1, 'Tulis password Anda.') })),
     mode: 'onTouched',
@@ -55,10 +100,15 @@ export function SignInForm({ next }: { next: string }) {
 
   const onSubmit = form.handleSubmit(async (values) => {
     setError('')
+    setUnverified('')
     const { error: failure } = await authClient.signIn.email({
       ...values,
       callbackURL: `${origin()}${next}`,
     })
+    if (failure?.code === 'EMAIL_NOT_VERIFIED') {
+      setUnverified(values.email)
+      return
+    }
     if (failure) {
       setError(authErrorMessage(failure))
       return
@@ -72,6 +122,20 @@ export function SignInForm({ next }: { next: string }) {
       <GoogleButton next={next} />
       <form noValidate onSubmit={onSubmit} className="grid gap-4">
         <FormError message={error} />
+        {unverified && (
+          <div role="alert" className="rounded-2xl bg-muted p-4">
+            <p className="flex items-center gap-2 font-medium">
+              <MailWarning aria-hidden="true" className="size-5 shrink-0" />
+              Email belum dikonfirmasi
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              Kami baru saja mengirim tautan konfirmasi ke{' '}
+              <span className="font-medium text-foreground">{unverified}</span>. Buka tautan itu, lalu
+              masuk lagi. Periksa juga folder spam.
+            </p>
+            <ResendVerification email={unverified} next={next} />
+          </div>
+        )}
         <TextField
           id="email"
           label="Email"
@@ -109,7 +173,11 @@ export function SignUpForm({ next }: { next: string }) {
       z.object({ name: z.string().trim().min(2, 'Tulis nama Anda.').max(80), email, password }),
     ),
     mode: 'onTouched',
+    defaultValues: { name: '', email: '', password: '' },
   })
+  const setTagName = useTagName()
+  const typedName = useWatch({ control: form.control, name: 'name' })
+  useEffect(() => setTagName(typedName ?? ''), [typedName, setTagName])
 
   const onSubmit = form.handleSubmit(async (values) => {
     setError('')
@@ -127,15 +195,7 @@ export function SignUpForm({ next }: { next: string }) {
   if (sentTo) {
     return (
       <SentNotice email={sentTo}>
-        <Button
-          variant="outline"
-          className="mt-6"
-          onClick={() =>
-            authClient.sendVerificationEmail({ email: sentTo, callbackURL: `${origin()}${next}` })
-          }
-        >
-          Kirim ulang tautan
-        </Button>
+        <ResendVerification email={sentTo} next={next} />
       </SentNotice>
     )
   }

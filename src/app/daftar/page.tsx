@@ -11,14 +11,21 @@ export default async function SignUpPage(props: PageProps<'/daftar'>) {
 
   return (
     <AuthShell
+      mode="daftar"
+      next={next}
       title="Buat akun"
       intro="Simpan alamat untuk checkout lebih cepat dan pantau pengiriman pesanan."
       footer={
         <>
-          Sudah punya akun?{' '}
-          <Link href={`/masuk?next=${encodeURIComponent(next)}`} className="font-medium text-foreground">
-            <span className="link-stitch">Masuk</span>
+          Dengan mendaftar, Anda setuju dengan{' '}
+          <Link href="/syarat-ketentuan" className="font-medium text-foreground">
+            <span className="link-stitch">Syarat dan Ketentuan</span>
+          </Link>{' '}
+          serta{' '}
+          <Link href="/kebijakan-privasi" className="font-medium text-foreground">
+            <span className="link-stitch">Kebijakan Privasi</span>
           </Link>
+          .
         </>
       }
     >
