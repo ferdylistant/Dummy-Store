@@ -63,6 +63,8 @@ export interface AddedItem {
   price: number
   /** Bottom edge of the header when the tag appears, so it hangs right under it. */
   top: number
+  /** Counts adds while the tag is open. Each one nudges the tag instead of replacing it. */
+  bump: number
 }
 
 /** A paper tag that drops from under the header to confirm the item is in the bag. */
@@ -85,11 +87,18 @@ export function AddedNotice({ item, onClose }: { item: AddedItem | null; onClose
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: -24, rotate: 9 }}
             animate={{ opacity: 1, y: 0, rotate: 0 }}
             exit={reduced ? { opacity: 0 } : { opacity: 0, y: -16, transition: { duration: 0.15 } }}
-            transition={{ type: 'spring', stiffness: 170, damping: 9 }}
+            // A spring on opacity overshoots and pulses, so only the swing is springy.
+            transition={{ default: { type: 'spring', stiffness: 170, damping: 12 }, opacity: { duration: 0.15 } }}
             className="pointer-events-auto flex w-full max-w-sm flex-col items-center"
           >
             <span aria-hidden="true" className="block h-4 w-px bg-input" />
-            <div className="relative w-full rounded-b-2xl bg-card px-5 pt-7 pb-4 shadow-lg ring-1 ring-border [clip-path:polygon(18px_0,calc(100%_-_18px)_0,100%_18px,100%_100%,0_100%,0_18px)]">
+            <m.div
+              key={item.bump}
+              style={{ transformOrigin: '50% 0' }}
+              initial={reduced || item.bump === 0 ? false : { rotate: -4 }}
+              animate={{ rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 10 }}
+              className="relative w-full rounded-b-2xl bg-card px-5 pt-7 pb-4 shadow-lg ring-1 ring-border [clip-path:polygon(18px_0,calc(100%_-_18px)_0,100%_18px,100%_100%,0_100%,0_18px)]">
               <span
                 aria-hidden="true"
                 className="absolute top-2.5 left-1/2 size-2.5 -translate-x-1/2 rounded-full bg-muted ring-1 ring-input"
@@ -128,7 +137,7 @@ export function AddedNotice({ item, onClose }: { item: AddedItem | null; onClose
               >
                 Lihat Keranjang
               </button>
-            </div>
+            </m.div>
           </m.div>
         )}
       </AnimatePresence>

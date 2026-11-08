@@ -21,6 +21,8 @@ import { ProductPrice } from './product-price'
 const ONE_SIZE = 'Satu ukuran'
 /** How long the "in your bag" tag stays before it lifts away. */
 const NOTICE_MS = 4000
+/** Ignores repeat taps until the tag has landed, so one tap is one add. */
+const ADD_COOLDOWN_MS = 900
 
 export function ProductView({ product }: { product: Product }) {
   const router = useRouter()
@@ -36,12 +38,14 @@ export function ProductView({ product }: { product: Product }) {
   const [notice, setNotice] = useState<AddedItem | null>(null)
   const pending = useRef<AddedItem | null>(null)
   const noticeTimer = useRef<number | undefined>(undefined)
+  const lastAdd = useRef(0)
 
   useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
 
+  /** Keeps an open tag in place and updates it, so it never blinks out and back. */
   function showNotice(item: AddedItem) {
     window.clearTimeout(noticeTimer.current)
-    setNotice(item)
+    setNotice((current) => (current ? { ...item, id: current.id, top: current.top, bump: current.bump + 1 } : item))
     noticeTimer.current = window.setTimeout(() => setNotice(null), NOTICE_MS)
   }
 
@@ -63,7 +67,10 @@ export function ProductView({ product }: { product: Product }) {
   }
 
   function handleAdd(event: MouseEvent<HTMLButtonElement>) {
+    const now = Date.now()
+    if (flight || now - lastAdd.current < ADD_COOLDOWN_MS) return
     if (!addSelected()) return
+    lastAdd.current = now
     const item = {
       id: Date.now(),
       name: product.name,
@@ -73,6 +80,7 @@ export function ProductView({ product }: { product: Product }) {
       quantity,
       price: product.price,
       top: Math.max(0, document.querySelector('header')?.getBoundingClientRect().bottom ?? 56),
+      bump: 0,
     }
     const to = cartTarget()
     if (reduced || !to) {
