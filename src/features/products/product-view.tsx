@@ -1,7 +1,7 @@
 'use client'
 
 import { RotateCcw, ShoppingBag, Truck } from 'lucide-react'
-import { AnimatePresence, m, useReducedMotion } from 'motion/react'
+import { m, useAnimationControls, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
@@ -33,7 +33,13 @@ export function ProductView({ product }: { product: Product }) {
   const [size, setSize] = useState(hasSizes ? '' : ONE_SIZE)
   const [quantity, setQuantity] = useState(1)
   const [sizeError, setSizeError] = useState(false)
-  const [swings, setSwings] = useState(0)
+  const tagSwing = useAnimationControls()
+  /**
+   * Photos stacked oldest first. A new color fades in on top, and the ones
+   * under it are dropped only once it is fully opaque, so the grey tile never
+   * shows through, even when colors are clicked quickly.
+   */
+  const [photos, setPhotos] = useState([{ id: 0, color: product.colors[0] }])
   const [flight, setFlight] = useState<Flight | null>(null)
   const [notice, setNotice] = useState<AddedItem | null>(null)
   const pending = useRef<AddedItem | null>(null)
@@ -45,7 +51,7 @@ export function ProductView({ product }: { product: Product }) {
   /** Keeps an open tag in place and updates it, so it never blinks out and back. */
   function showNotice(item: AddedItem) {
     window.clearTimeout(noticeTimer.current)
-    setNotice((current) => (current ? { ...item, id: current.id, top: current.top, bump: current.bump + 1 } : item))
+    setNotice((current) => (current ? { ...item, id: current.id, bump: current.bump + 1 } : item))
     noticeTimer.current = window.setTimeout(() => setNotice(null), NOTICE_MS)
   }
 
@@ -101,31 +107,37 @@ export function ProductView({ product }: { product: Product }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:gap-12">
       <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-muted lg:sticky lg:top-24 lg:self-start">
-        <AnimatePresence initial={false}>
-          <m.div
-            key={color.name}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0"
-          >
-            <ProductImage
-              product={product}
-              color={color.hex}
-              sizes="(min-width: 1024px) 50vw, 100vw"
-              priority
-            />
-          </m.div>
-        </AnimatePresence>
+        {/*
+          The new color fades in on top while the old one stays fully opaque
+          underneath, so the grey tile never shows through mid change.
+        */}
+        <div data-product-photo className="absolute inset-0 isolate">
+          {photos.map((photo) => (
+            <m.div
+              key={photo.id}
+              initial={photo.id === 0 ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+              onAnimationComplete={() =>
+                setPhotos((stack) => (stack[0].id < photo.id ? stack.filter((item) => item.id >= photo.id) : stack))
+              }
+              className="absolute inset-0"
+            >
+              <ProductImage
+                product={product}
+                color={photo.color.hex}
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                priority={photo.id === 0}
+              />
+            </m.div>
+          ))}
+        </div>
 
         <m.span
-          key={swings}
           aria-hidden="true"
-          initial={swings > 0 ? { rotate: -14 } : false}
-          animate={{ rotate: 0 }}
-          transition={{ type: 'spring', stiffness: 160, damping: 6 }}
+          animate={tagSwing}
           style={{ transformOrigin: '50% 0' }}
+          data-price-tag
           className="absolute top-0 right-6 z-10 drop-shadow-sm lg:right-10"
         >
           <span className="mx-auto block h-8 w-px bg-input lg:h-12" />
@@ -161,7 +173,14 @@ export function ProductView({ product }: { product: Product }) {
                   checked={option.name === color.name}
                   onChange={() => {
                     setColor(option)
-                    setSwings((value) => value + 1)
+                    setPhotos((stack) => [...stack, { id: stack[stack.length - 1].id + 1, color: option }])
+                    // Starts from the current angle, so a quick second change never jumps.
+                    if (!reduced) {
+                      tagSwing.start({
+                        rotate: [null, -12, 8, -4, 2, 0],
+                        transition: { duration: 1.1, ease: 'easeOut' },
+                      })
+                    }
                   }}
                 />
                 <span className="sr-only">{option.name}</span>

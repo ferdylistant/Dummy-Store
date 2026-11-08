@@ -1,7 +1,8 @@
 'use client'
 
 import { X } from 'lucide-react'
-import { AnimatePresence, m, useReducedMotion } from 'motion/react'
+import { AnimatePresence, m, useAnimationControls, useReducedMotion } from 'motion/react'
+import { useEffect, useRef } from 'react'
 import { buttonClasses } from '@/components/ui/button'
 import { useCart } from '@/features/cart/store'
 import { formatRupiah } from '@/lib/format'
@@ -71,6 +72,34 @@ export interface AddedItem {
 export function AddedNotice({ item, onClose }: { item: AddedItem | null; onClose: () => void }) {
   const reduced = useReducedMotion()
   const openCart = useCart((state) => state.openCart)
+  const tagRef = useRef<HTMLDivElement>(null)
+  const nudge = useAnimationControls()
+  const id = item?.id
+  const bump = item?.bump ?? 0
+
+  // Another add nudges the tag from where it hangs. Remounting would drop keyboard focus.
+  useEffect(() => {
+    if (bump > 0 && !reduced) {
+      nudge.start({ rotate: [null, -4, 2, 0], transition: { duration: 0.5, ease: 'easeOut' } })
+    }
+  }, [bump, reduced, nudge])
+
+  // The promo bar scrolls away and the header moves up, so the tag follows it.
+  useEffect(() => {
+    if (id === undefined) return
+    const header = document.querySelector('header')
+    const follow = () => {
+      if (tagRef.current && header) {
+        tagRef.current.style.top = `${Math.max(0, header.getBoundingClientRect().bottom)}px`
+      }
+    }
+    window.addEventListener('scroll', follow, { passive: true })
+    window.addEventListener('resize', follow)
+    return () => {
+      window.removeEventListener('scroll', follow)
+      window.removeEventListener('resize', follow)
+    }
+  }, [id])
 
   return (
     // A zero-height layer. Each tag carries its own position, so one that is
@@ -80,6 +109,7 @@ export function AddedNotice({ item, onClose }: { item: AddedItem | null; onClose
         {item && (
           <m.div
             key={item.id}
+            ref={tagRef}
             style={{ top: item.top, transformOrigin: '50% 0' }}
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: -24, rotate: 9 }}
             animate={{ opacity: 1, y: 0, rotate: 0 }}
@@ -94,11 +124,8 @@ export function AddedNotice({ item, onClose }: { item: AddedItem | null; onClose
           >
             <span aria-hidden="true" className="block h-4 w-px bg-input" />
             <m.div
-              key={item.bump}
+              animate={nudge}
               style={{ transformOrigin: '50% 0' }}
-              initial={reduced || item.bump === 0 ? false : { rotate: -4 }}
-              animate={{ rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 10 }}
               className="relative w-full rounded-b-2xl bg-card px-5 pt-7 pb-4 shadow-lg ring-1 ring-border [clip-path:polygon(18px_0,calc(100%_-_18px)_0,100%_18px,100%_100%,0_100%,0_18px)]">
               <span
                 aria-hidden="true"

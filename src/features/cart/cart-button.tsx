@@ -1,7 +1,8 @@
 'use client'
 
 import { ShoppingBag } from 'lucide-react'
-import { m } from 'motion/react'
+import { m, useAnimationControls, useReducedMotion } from 'motion/react'
+import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCart, useCartCount } from './store'
 
@@ -9,6 +10,14 @@ export function CartButton() {
   const count = useCartCount()
   const openCart = useCart((state) => state.openCart)
   const addedTick = useCart((state) => state.addedTick)
+  const bump = useAnimationControls()
+  const reduced = useReducedMotion()
+
+  useEffect(() => {
+    if (addedTick > 0 && !reduced) {
+      bump.start({ scale: [null, 1.35, 1], transition: { duration: 0.45, ease: 'easeOut' } })
+    }
+  }, [addedTick, reduced, bump])
 
   return (
     <Button
@@ -22,11 +31,8 @@ export function CartButton() {
       <ShoppingBag aria-hidden="true" className="size-6" />
       {count > 0 && (
         <m.span
-          key={addedTick}
           aria-hidden="true"
-          initial={addedTick > 0 ? { scale: 1.4 } : false}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+          animate={bump}
           className="absolute top-0.5 right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-xs font-semibold text-primary-foreground tabular-nums"
         >
           {count}
