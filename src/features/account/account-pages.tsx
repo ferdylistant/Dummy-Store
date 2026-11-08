@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TextField } from '@/components/ui/text-field'
 import { authClient, authErrorMessage } from '@/lib/auth-client'
 import { formatRupiah } from '@/lib/format'
+import { SHIPPING_OPTIONS } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 import {
   getOrderHistory,
@@ -21,6 +22,7 @@ import {
   type Preferences,
 } from '@/services/account'
 import { AccountSection } from './account-shell'
+import { OrderProgress, OrderThumb, StatusChip, orderDate, useOrderProducts } from './order-parts'
 
 function Saved({ show }: { show: boolean }) {
   return (
@@ -41,7 +43,7 @@ export function ProfileSection() {
   if (!session) return null
 
   return (
-    <AccountSection title="Profil" description="Nama dipakai di email dan sebagai penerima bawaan.">
+    <AccountSection title="Data diri" description="Nama dipakai di email dan sebagai penerima bawaan.">
       <form
         noValidate
         className="grid max-w-xl gap-4"
@@ -77,40 +79,48 @@ export function ProfileSection() {
   )
 }
 
-const STATUS: Record<OrderHistoryItem['status'], { label: string; tone: string }> = {
-  awaiting_payment: { label: 'Belum dibayar', tone: 'text-warning' },
-  paid: { label: 'Dikemas', tone: 'text-foreground' },
-  expired: { label: 'Kedaluwarsa', tone: 'text-muted-foreground' },
-  cancelled: { label: 'Dibatalkan', tone: 'text-muted-foreground' },
-  refunded: { label: 'Dana dikembalikan', tone: 'text-muted-foreground' },
-}
+const FILTERS = [
+  { id: 'semua', label: 'Semua', match: () => true },
+  { id: 'bayar', label: 'Belum dibayar', match: (order: OrderHistoryItem) => order.status === 'awaiting_payment' },
+  { id: 'proses', label: 'Diproses', match: (order: OrderHistoryItem) => order.status === 'paid' },
+  {
+    id: 'batal',
+    label: 'Dibatalkan',
+    match: (order: OrderHistoryItem) => ['expired', 'cancelled', 'refunded'].includes(order.status),
+  },
+] as const
 
-const dateFormat = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' })
+function OrdersSkeleton() {
+  return (
+    <div role="status" aria-label="Memuat pesanan" className="grid gap-4">
+      <Skeleton className="h-11 w-full max-w-md rounded-full" />
+      <Skeleton className="h-64 rounded-3xl" />
+      <Skeleton className="h-64 rounded-3xl" />
+    </div>
+  )
+}
 
 export function OrderHistory() {
   const [orders, setOrders] = useState<OrderHistoryItem[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('semua')
+  const products = useOrderProducts(orders)
 
   useEffect(() => {
     getOrderHistory().then(setOrders).catch(() => setFailed(true))
   }, [])
 
   if (failed) return <p role="alert" className="text-destructive">Pesanan gagal dimuat. Muat ulang halaman.</p>
-  if (!orders) {
-    return (
-      <div role="status" aria-label="Memuat pesanan" className="grid gap-4">
-        <Skeleton className="h-36 rounded-3xl" />
-        <Skeleton className="h-36 rounded-3xl" />
-      </div>
-    )
-  }
+  if (!orders) return <OrdersSkeleton />
 
   if (orders.length === 0) {
     return (
-      <AccountSection title="Pesanan">
-        <div className="flex flex-col items-center gap-3 py-10 text-center">
+      <AccountSection title="Belum ada pesanan">
+        <div className="flex flex-col items-start gap-4">
           <Package aria-hidden="true" className="size-10 text-muted-foreground" />
-          <p className="font-medium">Belum ada pesanan</p>
+          <p className="text-muted-foreground">
+            Setelah Anda berbelanja, status pembayaran dan pengiriman bisa dipantau dari sini.
+          </p>
           <Link href="/produk" className={buttonClasses({ variant: 'action' })}>
             Mulai Belanja
             <ButtonArrow />
@@ -120,47 +130,93 @@ export function OrderHistory() {
     )
   }
 
+  const active = FILTERS.find((item) => item.id === filter) ?? FILTERS[0]
+  const shown = orders.filter(active.match)
+
   return (
-    <ul className="grid gap-4">
-      {orders.map((order) => {
-        const status = STATUS[order.status]
-        return (
-          <li key={order.orderNumber} className="rounded-3xl border border-border p-5 md:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <p className="text-muted-foreground">
-                <span className="font-medium text-foreground tabular-nums">{order.orderNumber}</span>
-                {' · '}
-                {dateFormat.format(new Date(`${order.createdAt.replace(' ', 'T')}Z`))}
-              </p>
-              <p className={cn('font-semibold', status.tone)}>{status.label}</p>
-            </div>
-            <ul className="mt-4 divide-y divide-dashed divide-input border-y border-dashed border-input">
-              {order.items.map((item) => (
-                <li key={`${item.productId}-${item.color}-${item.size}`} className="flex justify-between gap-4 py-2 text-sm">
-                  <span>
-                    {item.name}{' '}
-                    <span className="text-muted-foreground">
-                      {item.color}
-                      {item.size === 'Satu ukuran' ? '' : `, ${item.size}`} x{item.quantity}
-                    </span>
-                  </span>
-                  <span className="tabular-nums">{formatRupiah(item.lineTotal)}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="font-semibold tabular-nums">Total {formatRupiah(order.total)}</p>
-              <Link
-                href={`/checkout/berhasil?pesanan=${order.orderNumber}`}
-                className={buttonClasses({ variant: order.status === 'awaiting_payment' ? 'primary' : 'outline' })}
+    <div className="grid gap-6">
+      <div role="group" aria-label="Saring pesanan" className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <div className="inline-flex gap-1 rounded-full bg-muted p-1">
+          {FILTERS.map((item) => {
+            const count = orders.filter(item.match).length
+            const pressed = item.id === filter
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={pressed}
+                onClick={() => setFilter(item.id)}
+                className={cn(
+                  'inline-flex h-10 cursor-pointer items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition-colors duration-200',
+                  pressed ? 'bg-background font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                )}
               >
-                {order.status === 'awaiting_payment' ? 'Bayar Sekarang' : 'Lihat Detail'}
-              </Link>
-            </div>
-          </li>
-        )
-      })}
-    </ul>
+                {item.label}
+                <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="rounded-3xl border border-dashed border-input p-8 text-center text-muted-foreground">
+          Tidak ada pesanan dengan status ini.
+        </p>
+      ) : (
+        <ul className="grid gap-4">
+          {shown.map((order) => {
+            const unpaid = order.status === 'awaiting_payment'
+            return (
+              <li key={order.orderNumber} className="rounded-3xl border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 md:px-6">
+                  <div>
+                    <p className="font-semibold tabular-nums">{order.orderNumber}</p>
+                    <p className="text-sm text-muted-foreground">Dipesan {orderDate(order.createdAt)}</p>
+                  </div>
+                  <StatusChip status={order.status} />
+                </div>
+
+                {(unpaid || order.status === 'paid') && (
+                  <div className="mt-5 px-3 md:px-6">
+                    <OrderProgress status={order.status} />
+                  </div>
+                )}
+
+                <ul className="mt-5 divide-y divide-dashed divide-input border-y border-dashed border-input px-5 md:px-6">
+                  {order.items.map((item) => (
+                    <li key={`${item.productId}-${item.color}-${item.size}`} className="flex items-center gap-4 py-3">
+                      <OrderThumb product={products.get(item.productId)} color={item.color} className="size-16" />
+                      <div className="min-w-0 flex-1 text-sm">
+                        <p className="truncate font-medium">{item.name}</p>
+                        <p className="text-muted-foreground">
+                          {item.color}
+                          {item.size === 'Satu ukuran' ? '' : `, ${item.size}`} · {item.quantity} barang
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium tabular-nums">{formatRupiah(item.lineTotal)}</p>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-6">
+                  <p className="text-sm text-muted-foreground">
+                    {SHIPPING_OPTIONS[order.shippingMethod]?.label ?? 'Reguler'} · Total{' '}
+                    <span className="text-base font-semibold text-foreground tabular-nums">{formatRupiah(order.total)}</span>
+                  </p>
+                  <Link
+                    href={`/checkout/berhasil?pesanan=${order.orderNumber}`}
+                    className={buttonClasses({ variant: unpaid ? 'primary' : 'outline' })}
+                  >
+                    {unpaid ? 'Bayar Sekarang' : 'Lihat Detail'}
+                  </Link>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -228,7 +284,7 @@ export function PreferencesForm() {
   }
 
   return (
-    <AccountSection title="Notifikasi" description="Pilih email apa saja yang ingin Anda terima.">
+    <AccountSection title="Email dari toko" description="Email transaksi penting seperti konfirmasi akun selalu dikirim.">
       {!prefs ? (
         <Skeleton className="h-32 rounded-xl" />
       ) : (

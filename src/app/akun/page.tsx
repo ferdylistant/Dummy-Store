@@ -1,5 +1,5 @@
-import { ProfileSection } from '@/features/account/account-pages'
+import { AccountOverview } from '@/features/account/account-overview'
 
 export default function Page() {
-  return <ProfileSection />
+  return <AccountOverview />
 }

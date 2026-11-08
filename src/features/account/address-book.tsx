@@ -164,8 +164,8 @@ export function AddressBook() {
 
   return (
     <AccountSection
-      title="Alamat"
-      description="Alamat utama dipilih otomatis saat checkout."
+      title="Daftar alamat"
+      description="Maksimal 20 alamat. Pilih satu sebagai alamat utama."
       action={
         editing === null && (
           <Button variant="outline" onClick={() => setEditing('new')}>

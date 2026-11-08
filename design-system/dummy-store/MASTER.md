@@ -31,6 +31,7 @@ Toko ini punya satu benda khas, yaitu label baju yang digantung. Motif ini yang 
 - **FAQ:** `<details>` dengan utility `accordion` dan atribut `name`, pemisah jahitan yang menjadi benang utuh saat terbuka.
 - **Label kain:** panel `muted` dengan garis jahitan di dalamnya, untuk Detail Produk. Isinya hanya data produk yang benar.
 - **Kartu anggota:** label kertas besar yang tergantung di rel, di halaman Masuk, Daftar, dan pemulihan password (`AuthShell` di `src/features/auth/auth-shell.tsx`). Nama yang diketik di form Daftar ikut tertulis di label. Label berayun sekali saat muncul.
+- **Halaman akun:** menu samping berupa garis jahitan putus-putus, dengan menu aktif dijahit benang utuh (di ponsel menjadi tab geser dengan jahitan di bawah). Ringkasan memakai kartu anggota bergaya label kain. Status pesanan selalu memakai ikon dan teks lewat `StatusChip`, dan tahap pesanan memakai `OrderProgress` (`src/features/account/order-parts.tsx`).
 - **Jahitan:** garis putus-putus yang menjadi benang utuh. Dipakai untuk progres checkout dan tautan teks.
 
 ## 3. Warna

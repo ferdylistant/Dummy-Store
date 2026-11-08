@@ -37,6 +37,7 @@ export interface OrderHistoryItem {
   status: 'awaiting_payment' | 'paid' | 'expired' | 'cancelled' | 'refunded'
   total: number
   createdAt: string
+  shippingMethod: 'reguler' | 'ekspres'
   items: { productId: string; name: string; color: string; size: string; quantity: number; lineTotal: number }[]
 }
 
