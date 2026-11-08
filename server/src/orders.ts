@@ -12,6 +12,19 @@ const EXPIRY_GRACE_MS = 5 * 60_000
 
 export type OrderStatus = 'awaiting_payment' | 'paid' | 'expired' | 'cancelled' | 'refunded'
 
+/** Midtrans Snap payment codes the store offers. */
+export const PAYMENT_METHODS = [
+  'bca_va',
+  'bni_va',
+  'bri_va',
+  'echannel',
+  'permata_va',
+  'other_qris',
+  'gopay',
+  'shopeepay',
+  'credit_card',
+] as const
+
 export const orderSchema = z.object({
   customer: z.object({
     email: z.email('Email tidak valid.'),
@@ -21,6 +34,7 @@ export const orderSchema = z.object({
       .trim()
       .regex(/^(\+62|62|0)8[0-9]{7,12}$/, 'Nomor ponsel tidak valid.'),
     address: z.string().trim().min(10).max(500),
+    district: z.string().trim().min(3).max(120),
     city: z.string().trim().min(3).max(120),
     province: z.string().trim().min(3).max(120),
     postalCode: z
@@ -28,8 +42,12 @@ export const orderSchema = z.object({
       .trim()
       .regex(/^[0-9]{5}$/, 'Kode pos harus 5 angka.'),
     notes: z.string().trim().max(200).optional(),
+    areaId: z.string().trim().max(80).optional(),
     shippingMethod: z.enum(['reguler', 'ekspres']),
+    paymentMethod: z.enum(PAYMENT_METHODS),
   }),
+  /** Signed in shoppers can keep the address for next time. */
+  saveAddress: z.boolean().optional(),
   // Only references are accepted. Prices always come from the database.
   items: z
     .array(
@@ -113,7 +131,7 @@ function toResult(row: OrderRow, gateway: PaymentGateway): OrderResult {
 }
 
 /** Takes stock and saves the order in one transaction, before any payment call. */
-function reserveOrder(db: Database, input: OrderInput, idempotencyKey?: string) {
+function reserveOrder(db: Database, input: OrderInput, idempotencyKey?: string, userId?: string) {
   const items = mergeItems(input.items)
   const findProduct = db.prepare('SELECT name, price FROM products WHERE id = ?')
   const findVariant = db.prepare(
@@ -155,23 +173,27 @@ function reserveOrder(db: Database, input: OrderInput, idempotencyKey?: string) 
 
     const order = db
       .prepare(
-        `INSERT INTO orders (order_number, idempotency_key, status, email, full_name, phone, address,
-          city, province, postal_code, notes, shipping_method, payment_method, subtotal,
-          shipping_cost, total, expires_at)
-        VALUES (?, ?, 'awaiting_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'midtrans', ?, ?, ?, ?)`,
+        `INSERT INTO orders (order_number, idempotency_key, user_id, status, email, full_name, phone,
+          address, district, city, province, postal_code, area_id, notes, shipping_method,
+          payment_method, subtotal, shipping_cost, total, expires_at)
+        VALUES (?, ?, ?, 'awaiting_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         orderNumber,
         idempotencyKey ?? null,
+        userId ?? null,
         customer.email,
         customer.fullName,
         customer.phone,
         customer.address,
+        customer.district,
         customer.city,
         customer.province,
         customer.postalCode,
+        customer.areaId ?? null,
         customer.notes || null,
         customer.shippingMethod,
+        customer.paymentMethod,
         subtotal,
         shipping,
         total,
@@ -227,14 +249,14 @@ export async function createOrder(
   db: Database,
   gateway: PaymentGateway,
   input: OrderInput,
-  options: { siteUrl: string; idempotencyKey?: string },
+  options: { siteUrl: string; idempotencyKey?: string; userId?: string },
 ): Promise<OrderResult> {
   if (options.idempotencyKey) {
     const previous = findOrder(db, 'idempotency_key', options.idempotencyKey)
     if (previous) return toResult(previous, gateway)
   }
 
-  const order = reserveOrder(db, input, options.idempotencyKey)
+  const order = reserveOrder(db, input, options.idempotencyKey, options.userId)
   const { customer } = input
 
   try {
@@ -262,6 +284,7 @@ export async function createOrder(
       },
       expiryHours: PAYMENT_EXPIRY_HOURS,
       finishUrl: `${options.siteUrl}/checkout/berhasil`,
+      enabledPayments: [customer.paymentMethod],
     })
 
     db.prepare('UPDATE orders SET snap_token = ?, payment_url = ? WHERE id = ?').run(
@@ -320,8 +343,8 @@ export function applyPaymentStatus(db: Database, payment: PaymentStatus) {
   if (order.status === 'awaiting_payment') {
     if (next === 'paid') {
       db.prepare(
-        "UPDATE orders SET status = 'paid', paid_at = datetime('now'), payment_method = ? WHERE id = ? AND status = 'awaiting_payment'",
-      ).run(payment.paymentType ?? 'midtrans', order.id)
+        "UPDATE orders SET status = 'paid', paid_at = datetime('now') WHERE id = ? AND status = 'awaiting_payment'",
+      ).run(order.id)
     } else if (next === 'expired' || next === 'cancelled') {
       releaseOrder(db, order.id, next)
     }

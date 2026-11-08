@@ -6,16 +6,21 @@ import { m } from 'motion/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { useForm, useWatch, type FieldErrors } from 'react-hook-form'
+import { useForm, useWatch, type FieldErrors, type UseFormSetValue } from 'react-hook-form'
 import { Button, ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { TextAreaField, TextField } from '@/components/ui/text-field'
+import { formatAddress } from '@/features/account/address-book'
+import { RegionField } from '@/features/account/region-field'
 import { CartLoadError } from '@/features/cart/cart-load-error'
 import { OrderSummary } from '@/features/cart/order-summary'
 import { useCart } from '@/features/cart/store'
 import { useCartLines, type CartLine } from '@/features/cart/use-cart-lines'
+import { authClient } from '@/lib/auth-client'
 import { formatRupiah } from '@/lib/format'
+import { PAYMENT_GROUPS } from '@/lib/payment-methods'
 import { shippingCost, SHIPPING_OPTIONS } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
+import { getAddresses, type Address } from '@/services/account'
 import { ApiError } from '@/services/api'
 import { createOrder } from '@/services/orders'
 import { CheckoutSkeleton } from './checkout-skeleton'
@@ -26,16 +31,28 @@ import { loadSnap, openSnap } from './snap'
 const STEPS = [
   {
     title: 'Data Diri',
-    fields: ['email', 'phone', 'fullName', 'address', 'city', 'province', 'postalCode', 'notes'],
+    fields: ['email', 'phone', 'fullName', 'address', 'district', 'city', 'province', 'postalCode', 'notes'],
   },
   { title: 'Pengiriman', fields: ['shippingMethod'] },
-  { title: 'Pembayaran', fields: [] },
+  { title: 'Pembayaran', fields: ['paymentMethod'] },
 ] as const
 
 const STEP_TITLES = STEPS.map((step) => step.title)
 const LAST_STEP = STEPS.length - 1
 
-const PAYMENT_METHODS = ['Virtual account bank', 'QRIS', 'Dompet digital', 'Kartu kredit']
+const NEW_ADDRESS = 'baru'
+
+function fillAddress(setValue: UseFormSetValue<CheckoutValues>, address: Address | null) {
+  const options = { shouldValidate: false, shouldDirty: true }
+  setValue('fullName', address?.recipient ?? '', options)
+  setValue('phone', address?.phone ?? '', options)
+  setValue('address', address?.address ?? '', options)
+  setValue('district', address?.district ?? '', options)
+  setValue('city', address?.city ?? '', options)
+  setValue('province', address?.province ?? '', options)
+  setValue('postalCode', address?.postalCode ?? '', options)
+  setValue('areaId', address?.areaId ?? undefined, options)
+}
 
 function OptionCard({
   label,
@@ -121,6 +138,10 @@ export function CheckoutForm() {
   const [ordered, setOrdered] = useState(false)
   // Stays the same across retries, so reopening payment reuses the same order.
   const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const { data: session } = authClient.useSession()
+  const [addresses, setAddresses] = useState<Address[]>([])
+  const [addressChoice, setAddressChoice] = useState<string>(NEW_ADDRESS)
+  const [saveAddress, setSaveAddress] = useState(true)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const shownStep = useRef(0)
 
@@ -129,12 +150,51 @@ export function CheckoutForm() {
     handleSubmit,
     trigger,
     control,
+    setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     mode: 'onTouched',
-    defaultValues: { shippingMethod: 'reguler' },
+    defaultValues: {
+      shippingMethod: 'reguler',
+      district: '',
+      city: '',
+      province: '',
+      postalCode: '',
+    },
   })
+
+  const userId = session?.user.id
+  const userEmail = session?.user.email
+
+  // A signed in shopper starts from their default address, like a marketplace app.
+  useEffect(() => {
+    if (!userId) return
+    if (userEmail && !getValues('email')) setValue('email', userEmail)
+    let current = true
+    getAddresses()
+      .then((saved) => {
+        if (!current || saved.length === 0) return
+        setAddresses(saved)
+        const preferred = saved.find((item) => item.isDefault) ?? saved[0]
+        if (!getValues('address')) {
+          fillAddress(setValue, preferred)
+          setAddressChoice(String(preferred.id))
+        }
+      })
+      .catch(() => {})
+    return () => {
+      current = false
+    }
+  }, [userId, userEmail, getValues, setValue])
+
+  function chooseAddress(choice: string) {
+    setAddressChoice(choice)
+    fillAddress(setValue, addresses.find((item) => String(item.id) === choice) ?? null)
+  }
+
+  const newAddress = addressChoice === NEW_ADDRESS
 
   const values = useWatch({ control })
   const shippingMethod = values.shippingMethod ?? 'reguler'
@@ -174,7 +234,10 @@ export function CheckoutForm() {
     setSubmitError('')
     setUnfinished(false)
     try {
-      const order = await createOrder({ customer, items }, idempotencyKey)
+      const order = await createOrder(
+        { customer, items, saveAddress: Boolean(session) && newAddress && saveAddress },
+        idempotencyKey,
+      )
       if (!order.payment) {
         finish(order.orderNumber)
         return
@@ -272,6 +335,54 @@ export function CheckoutForm() {
           >
             {step === 0 && (
               <div className="grid gap-4 md:grid-cols-2">
+                {!session && (
+                  <p className="rounded-xl bg-muted p-3 text-sm md:col-span-2">
+                    Punya akun?{' '}
+                    <Link href="/masuk?next=/checkout" className="font-medium">
+                      <span className="link-stitch">Masuk</span>
+                    </Link>{' '}
+                    untuk memakai alamat tersimpan. Tanpa akun juga bisa.
+                  </p>
+                )}
+                {addresses.length > 0 && (
+                  <fieldset className="grid gap-3 md:col-span-2">
+                    <legend className="mb-2 text-sm font-medium">Kirim ke</legend>
+                    {addresses.map((address) => (
+                      <OptionCard
+                        key={address.id}
+                        label={`${address.label} · ${address.recipient}`}
+                        hint={`${address.phone} · ${formatAddress(address)}`}
+                        aside={address.isDefault ? 'Utama' : undefined}
+                        checked={addressChoice === String(address.id)}
+                        input={
+                          <input
+                            type="radio"
+                            name="saved-address"
+                            value={address.id}
+                            checked={addressChoice === String(address.id)}
+                            onChange={() => chooseAddress(String(address.id))}
+                            className="size-5 accent-primary"
+                          />
+                        }
+                      />
+                    ))}
+                    <OptionCard
+                      label="Alamat baru"
+                      hint="Tulis alamat lain untuk pesanan ini."
+                      checked={newAddress}
+                      input={
+                        <input
+                            type="radio"
+                            name="saved-address"
+                            value={NEW_ADDRESS}
+                            checked={addressChoice === String(NEW_ADDRESS)}
+                            onChange={() => chooseAddress(NEW_ADDRESS)}
+                            className="size-5 accent-primary"
+                          />
+                      }
+                    />
+                  </fieldset>
+                )}
                 <TextField
                   id="email"
                   label="Email"
@@ -283,6 +394,7 @@ export function CheckoutForm() {
                 />
                 <TextField
                   id="phone"
+                  className={newAddress ? undefined : 'hidden'}
                   label="Nomor ponsel"
                   type="tel"
                   inputMode="tel"
@@ -297,44 +409,58 @@ export function CheckoutForm() {
                   label="Nama penerima"
                   autoComplete="name"
                   required
-                  className="md:col-span-2"
+                  className={cn('md:col-span-2', !newAddress && 'hidden')}
                   error={errors.fullName?.message}
                   {...register('fullName')}
                 />
                 <TextAreaField
                   id="address"
-                  label="Alamat lengkap"
+                  label="Nama jalan, nomor rumah, RT/RW"
                   autoComplete="street-address"
                   required
-                  className="md:col-span-2"
+                  className={cn('md:col-span-2', !newAddress && 'hidden')}
                   error={errors.address?.message}
                   {...register('address')}
                 />
-                <TextField
-                  id="city"
-                  label="Kota atau kabupaten"
-                  autoComplete="address-level2"
-                  required
-                  error={errors.city?.message}
-                  {...register('city')}
-                />
-                <TextField
-                  id="province"
-                  label="Provinsi"
-                  autoComplete="address-level1"
-                  required
-                  error={errors.province?.message}
-                  {...register('province')}
-                />
-                <TextField
-                  id="postalCode"
-                  label="Kode pos"
-                  inputMode="numeric"
-                  autoComplete="postal-code"
-                  required
-                  error={errors.postalCode?.message}
-                  {...register('postalCode')}
-                />
+                {newAddress && (
+                  <div className="md:col-span-2">
+                    <RegionField
+                      idPrefix="checkout"
+                      value={{
+                        district: values.district ?? '',
+                        city: values.city ?? '',
+                        province: values.province ?? '',
+                        postalCode: values.postalCode ?? '',
+                        areaId: values.areaId,
+                      }}
+                      onChange={(region) => {
+                        const options = { shouldValidate: true, shouldDirty: true }
+                        setValue('district', region.district, options)
+                        setValue('city', region.city, options)
+                        setValue('province', region.province, options)
+                        setValue('postalCode', region.postalCode, options)
+                        setValue('areaId', region.areaId, options)
+                      }}
+                      error={
+                        errors.district?.message ??
+                        errors.city?.message ??
+                        errors.province?.message ??
+                        errors.postalCode?.message
+                      }
+                    />
+                  </div>
+                )}
+                {session && newAddress && (
+                  <label className="flex min-h-11 items-center gap-3 md:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={saveAddress}
+                      onChange={(event) => setSaveAddress(event.target.checked)}
+                      className="size-5 accent-primary"
+                    />
+                    <span className="text-sm">Simpan alamat ini ke akun saya</span>
+                  </label>
+                )}
                 <TextField
                   id="notes"
                   label="Catatan untuk kurir"
@@ -374,27 +500,57 @@ export function CheckoutForm() {
 
             {step === 2 && (
               <>
-                <div className="rounded-2xl bg-muted p-5">
-                  <p className="flex items-center gap-2 font-medium">
-                    <ShieldCheck aria-hidden="true" className="size-5" />
-                    Pembayaran aman lewat Midtrans
+                <fieldset
+                  aria-describedby={errors.paymentMethod ? 'payment-error' : undefined}
+                  className="grid gap-6"
+                >
+                  <legend className="sr-only">Metode pembayaran</legend>
+                  {PAYMENT_GROUPS.map((group) => (
+                    <div key={group.title}>
+                      <p className="font-medium">{group.title}</p>
+                      <p className="text-sm text-muted-foreground">{group.hint}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {group.methods.map((method) => {
+                          const checked = values.paymentMethod === method.value
+                          return (
+                            <label
+                              key={method.value}
+                              className={cn(
+                                'flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-medium transition-colors duration-200 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring',
+                                group.methods.length === 1 && 'col-span-2 sm:col-span-3',
+                                checked
+                                  ? 'border-foreground bg-muted'
+                                  : 'border-input hover:border-foreground',
+                              )}
+                            >
+                              <input
+                                type="radio"
+                                value={method.value}
+                                className="size-5 shrink-0 accent-primary"
+                                {...register('paymentMethod')}
+                              />
+                              {method.label}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {errors.paymentMethod && (
+                    <p id="payment-error" role="alert" className="text-sm text-destructive">
+                      {errors.paymentMethod.message}
+                    </p>
+                  )}
+                </fieldset>
+
+                <div className="mt-6 grid gap-2 rounded-2xl bg-muted p-4 text-sm text-muted-foreground">
+                  <p className="flex items-center gap-2">
+                    <ShieldCheck aria-hidden="true" className="size-4 shrink-0" />
+                    Diproses aman oleh Midtrans. Jendela pembayaran langsung membuka cara yang Anda
+                    pilih.
                   </p>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Pilih cara bayar di jendela pembayaran yang terbuka setelah Anda menekan Bayar
-                    Sekarang.
-                  </p>
-                  <ul className="mt-4 flex flex-wrap gap-2">
-                    {PAYMENT_METHODS.map((method) => (
-                      <li
-                        key={method}
-                        className="rounded-full bg-background px-3 py-1 text-sm font-medium"
-                      >
-                        {method}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock aria-hidden="true" className="size-4" />
+                  <p className="flex items-center gap-2">
+                    <Clock aria-hidden="true" className="size-4 shrink-0" />
                     Batas pembayaran 24 jam setelah pesanan dibuat.
                   </p>
                 </div>
@@ -404,15 +560,16 @@ export function CheckoutForm() {
                     Tinjau pesanan
                   </h3>
                   <div className="mt-1 divide-y divide-border border-y border-border">
-                    <ReviewRow title="Kontak" onEdit={() => goTo(0)}>
+                    <ReviewRow title="Email" onEdit={() => goTo(0)}>
                       {values.email}
-                      <br />
-                      {values.phone}
                     </ReviewRow>
                     <ReviewRow title="Alamat pengiriman" onEdit={() => goTo(0)}>
                       {values.fullName}
                       <br />
-                      {values.address}, {values.city}, {values.province} {values.postalCode}
+                      {values.phone}
+                      <br />
+                      {values.address}, {values.district}, {values.city}, {values.province}{' '}
+                      {values.postalCode}
                     </ReviewRow>
                     <ReviewRow title="Metode pengiriman" onEdit={() => goTo(1)}>
                       {SHIPPING_OPTIONS[shippingMethod].label},{' '}

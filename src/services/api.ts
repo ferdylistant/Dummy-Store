@@ -23,21 +23,24 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       ...init,
+      // The browser sends the login cookie, so the API knows who is shopping.
+      ...(IS_SERVER ? {} : { credentials: 'include' as const }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
   } catch {
     throw new ApiError(0, 'network_error', 'Tidak bisa terhubung ke server. Coba lagi.')
   }
 
+  if (response.status === 204) return null as T
   if (response.ok) return (await response.json()) as T
 
   const body = (await response.json().catch(() => null)) as {
-    error?: { code?: string; message?: string }
+    error?: { code?: string; message?: string; details?: { message?: string }[] }
   } | null
   throw new ApiError(
     response.status,
     body?.error?.code ?? 'request_failed',
-    body?.error?.message ?? 'Permintaan gagal. Coba lagi.',
+    body?.error?.details?.[0]?.message ?? body?.error?.message ?? 'Permintaan gagal. Coba lagi.',
   )
 }
 
@@ -49,10 +52,19 @@ export function apiGet<T>(path: string) {
   )
 }
 
-export function apiPost<T>(path: string, body: unknown, headers: Record<string, string> = {}) {
+export function apiSend<T>(
+  method: 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) {
   return request<T>(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
+    method,
+    headers: body === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
+}
+
+export function apiPost<T>(path: string, body: unknown, headers: Record<string, string> = {}) {
+  return apiSend<T>('POST', path, body, headers)
 }

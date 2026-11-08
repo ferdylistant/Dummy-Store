@@ -4,6 +4,7 @@ import { CartButton } from '@/features/cart/cart-button'
 import { formatRupiah } from '@/lib/format'
 import { FREE_SHIPPING_MIN } from '@/lib/pricing'
 import { siteConfig } from '@/lib/site'
+import { AccountButton } from './account-button'
 import { Logo } from './logo'
 import { MobileMenu } from './mobile-menu'
 import { NavLinks } from './nav-links'
@@ -29,6 +30,7 @@ export function SiteHeader() {
           <NavLinks />
           <div className="ml-auto flex items-center lg:ml-0">
             <SearchButton />
+            <AccountButton />
             <CartButton />
           </div>
         </Container>

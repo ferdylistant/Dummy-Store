@@ -1,8 +1,11 @@
+import { toNodeHandler } from 'better-auth/node'
 import cors from 'cors'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import { z } from 'zod'
+import { accountRouter, saveAddress } from './account.js'
+import { sessionUser, type Auth } from './auth.js'
 import type { Database } from './db/index.js'
 import { errorHandler, HttpError, notFoundHandler } from './errors.js'
 import {
@@ -13,6 +16,7 @@ import {
   orderStatus,
 } from './orders.js'
 import type { PaymentGateway } from './payments/midtrans.js'
+import type { RegionProvider } from './regions.js'
 import {
   findProductBySlug,
   listCategories,
@@ -76,15 +80,40 @@ export interface AppOptions {
   payments?: PaymentGateway | null
   /** Orders allowed per IP address per minute. */
   ordersPerMinute?: number
+  auth: Auth
+  /** Null when Biteship is not configured. Address forms then use plain fields. */
+  regions?: RegionProvider | null
+  google?: boolean
 }
 
 export function createApp(db: Database, options: AppOptions) {
   const app = express()
   const payments = options.payments ?? null
+  const regions = options.regions ?? null
 
   app.use(helmet())
-  app.use(cors({ origin: options.corsOrigins, allowedHeaders: ['Content-Type', 'Idempotency-Key'] }))
+  app.use(
+    cors({
+      origin: options.corsOrigins,
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'Idempotency-Key'],
+    }),
+  )
+  // Better Auth reads the raw body itself, so it is mounted before the JSON parser.
+  app.all('/api/auth/{*path}', toNodeHandler(options.auth))
   app.use(express.json({ limit: '32kb' }))
+
+  app.get('/api/config', (_req, res) => {
+    res.json({ payments: Boolean(payments), regions: Boolean(regions), google: Boolean(options.google) })
+  })
+
+  app.get('/api/regions', limiter(60), async (req, res) => {
+    if (!regions) throw new HttpError(503, 'regions_not_configured', 'Pencarian wilayah belum aktif.')
+    const { q } = z.object({ q: z.string().trim().min(3).max(60) }).parse(req.query)
+    res.json({ items: await regions.search(q) })
+  })
+
+  app.use('/api/me', accountRouter(db, options.auth))
 
   app.get('/health', (_req, res) => {
     db.prepare('SELECT 1').get()
@@ -131,10 +160,26 @@ export function createApp(db: Database, options: AppOptions) {
     if (!payments) {
       throw new HttpError(503, 'payment_not_configured', 'Pembayaran belum disiapkan oleh toko.')
     }
+    const user = await sessionUser(options.auth, req.headers)
     const result = await createOrder(db, payments, input, {
       siteUrl: options.siteUrl ?? options.corsOrigins[0] ?? '',
       idempotencyKey,
+      userId: user?.id,
     })
+    if (user && input.saveAddress) {
+      const { customer } = input
+      saveAddress(db, user.id, {
+        label: 'Alamat',
+        recipient: customer.fullName,
+        phone: customer.phone,
+        address: customer.address,
+        district: customer.district,
+        city: customer.city,
+        province: customer.province,
+        postalCode: customer.postalCode,
+        areaId: customer.areaId,
+      })
+    }
     res.status(201).json(result)
   })
 

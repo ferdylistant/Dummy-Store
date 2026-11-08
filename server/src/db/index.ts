@@ -77,6 +77,30 @@ const SCHEMA = `
     unit_price INTEGER NOT NULL,
     line_total INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS addresses (
+    id INTEGER PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    address TEXT NOT NULL,
+    district TEXT NOT NULL,
+    city TEXT NOT NULL,
+    province TEXT NOT NULL,
+    postal_code TEXT NOT NULL,
+    area_id TEXT,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS addresses_user ON addresses (user_id);
+
+  CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id TEXT PRIMARY KEY,
+    order_updates INTEGER NOT NULL DEFAULT 1,
+    promotions INTEGER NOT NULL DEFAULT 0
+  );
 `
 
 export function openDatabase(path: string): Database {
@@ -95,6 +119,9 @@ const ORDER_COLUMNS = {
   payment_url: 'TEXT',
   paid_at: 'TEXT',
   expires_at: 'TEXT',
+  user_id: 'TEXT',
+  district: 'TEXT',
+  area_id: 'TEXT',
 }
 
 function migrate(db: Database) {
@@ -109,6 +136,7 @@ function migrate(db: Database) {
   db.exec(
     "CREATE INDEX IF NOT EXISTS orders_awaiting ON orders (status, expires_at) WHERE status = 'awaiting_payment'",
   )
+  db.exec('CREATE INDEX IF NOT EXISTS orders_user ON orders (user_id)')
 }
 
 /** Runs the callback in one transaction, and undoes everything if it throws. */

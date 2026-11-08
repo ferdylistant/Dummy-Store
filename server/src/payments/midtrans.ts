@@ -23,6 +23,8 @@ export interface PaymentRequest {
   }
   expiryHours: number
   finishUrl: string
+  /** Opens Snap straight on the method the shopper chose in the store. */
+  enabledPayments: string[]
 }
 
 export interface PaymentStatus {
@@ -113,6 +115,7 @@ export function createMidtransGateway(options: {
             },
           },
           expiry: { unit: 'hours', duration: request.expiryHours },
+          enabled_payments: request.enabledPayments,
           callbacks: { finish: request.finishUrl },
         }),
       })

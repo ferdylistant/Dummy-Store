@@ -3,6 +3,8 @@ import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { createApp } from './app.js'
+import type { Auth } from './auth.js'
+import { testAuth } from './testing/auth.js'
 import { openDatabase, type Database } from './db/index.js'
 import { createMidtransGateway, type PaymentGateway } from './payments/midtrans.js'
 
@@ -30,8 +32,9 @@ const customer = {
   city: 'Bandung',
   province: 'Jawa Barat',
   postalCode: '40115',
+  district: 'Coblong',
   shippingMethod: 'reguler',
-  paymentMethod: 'transfer',
+  paymentMethod: 'bca_va',
 }
 
 const hoodie = { productId: 'p007', color: 'Hitam', size: 'L', quantity: 1 }
@@ -41,6 +44,7 @@ describe('API', () => {
   let db: Database
   let server: Server
   let base: string
+  let auth: Auth
 
   const stock = (item: typeof hoodie) =>
     (
@@ -66,8 +70,9 @@ describe('API', () => {
 
   before(async () => {
     db = openDatabase(':memory:')
+    ;({ auth } = await testAuth(db))
     await new Promise<void>((resolve) => {
-      server = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1000, payments: testGateway() }).listen(0, () =>
+      server = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1000, payments: testGateway(), auth }).listen(0, () =>
         resolve(),
       )
     })
@@ -268,7 +273,7 @@ describe('API', () => {
     })
 
     it('limits repeated orders', async () => {
-      const limited = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1, payments: testGateway() })
+      const limited = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1, payments: testGateway(), auth })
       const limitedServer = await new Promise<Server>((resolve) => {
         const instance = limited.listen(0, () => resolve(instance))
       })

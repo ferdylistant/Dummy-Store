@@ -7,6 +7,8 @@ export type OrderStatus = 'awaiting_payment' | 'paid' | 'expired' | 'cancelled' 
 export interface OrderRequest {
   customer: CheckoutValues
   items: CartItem[]
+  /** Signed in shoppers can keep this address for next time. */
+  saveAddress?: boolean
 }
 
 export interface OrderResult {

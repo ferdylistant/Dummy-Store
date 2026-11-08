@@ -3,6 +3,8 @@ import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { createApp } from './app.js'
+import type { Auth } from './auth.js'
+import { testAuth } from './testing/auth.js'
 import { openDatabase, type Database } from './db/index.js'
 import { expireOverdueOrders } from './orders.js'
 import {
@@ -26,7 +28,9 @@ const customer = {
   city: 'Bandung',
   province: 'Jawa Barat',
   postalCode: '40115',
+  district: 'Coblong',
   shippingMethod: 'reguler',
+  paymentMethod: 'bca_va',
 }
 const hoodie = { productId: 'p007', color: 'Hitam', size: 'L', quantity: 2 }
 const mug = { productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 1 }
@@ -56,6 +60,7 @@ describe('payments', () => {
   let server: Server
   let base: string
   let fake: ReturnType<typeof fakeGateway>
+  let auth: Auth
 
   const stock = (item: typeof hoodie) =>
     (
@@ -87,12 +92,14 @@ describe('payments', () => {
   before(async () => {
     db = openDatabase(':memory:')
     fake = fakeGateway()
+    ;({ auth } = await testAuth(db))
     await new Promise<void>((resolve) => {
       server = createApp(db, {
         corsOrigins: ['http://localhost:3000'],
         siteUrl: 'http://localhost:3000',
         payments: fake.gateway,
         ordersPerMinute: 1000,
+        auth,
       }).listen(0, () => resolve())
     })
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -261,7 +268,7 @@ describe('payments', () => {
 
   it('refuses orders when Midtrans is not configured', async () => {
     const bare = await new Promise<Server>((resolve) => {
-      const instance = createApp(db, { corsOrigins: [] }).listen(0, () => resolve(instance))
+      const instance = createApp(db, { corsOrigins: [], auth }).listen(0, () => resolve(instance))
     })
     const response = await fetch(`http://127.0.0.1:${(bare.address() as AddressInfo).port}/api/orders`, {
       method: 'POST',
