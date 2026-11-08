@@ -3,7 +3,7 @@
 Toko online baju, celana, bandana, dan merchandise.
 
 - **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS
-- **Backend:** Express 5 di folder `server/`, dengan SQLite
+- **Backend:** Express 5 di folder `server/`, dengan PostgreSQL lewat Kysely
 
 Data produk masih contoh. Pembayaran memakai Midtrans Snap, mulai dari mode sandbox.
 
@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-Perintah ini menjalankan frontend dan API sekaligus. Buka http://localhost:3000, dan API berjalan di http://localhost:4000. Database dibuat dan diisi otomatis di `server/data/store.db`.
+Perintah ini menjalankan frontend dan API sekaligus. Buka http://localhost:3000, dan API berjalan di http://localhost:4000. Database PostgreSQL dibuat dan diisi otomatis di `server/data/pglite` memakai PGlite, jadi tidak ada yang perlu diinstal. PGlite hanya boleh dibuka satu proses, jadi jangan menjalankan dua API dengan folder yang sama.
 
 ## Perintah
 
@@ -106,4 +106,4 @@ Checkout tetap bisa tanpa akun. Pembeli yang masuk bisa memakai alamat tersimpan
 
 1. Salin `.env.example` menjadi `.env.local`, lalu isi `NEXT_PUBLIC_SITE_URL` dan `NEXT_PUBLIC_API_URL` dengan domain asli.
 2. Salin `server/.env.example` menjadi `server/.env`, lalu isi `CORS_ORIGINS` dengan domain frontend.
-3. Ganti SQLite dengan database server seperti PostgreSQL. SQLite bawaan Node masih eksperimental dan hanya cocok untuk satu server.
+3. Isi `DATABASE_URL` dengan alamat PostgreSQL, misalnya Neon (pakai alamat *pooled*). Tabel dibuat lewat migrasi saat API pertama kali berjalan.

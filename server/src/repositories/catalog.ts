@@ -1,45 +1,31 @@
-import type { Database } from '../db/index.js'
+import type { Selectable } from 'kysely'
+import type { Database, Schema } from '../db/index.js'
 import type { Category, Product, ProductColor, ProductQuery, SortKey } from '../types.js'
 
 const DEFAULT_PAGE_SIZE = 12
 const SIZE_ORDER = ['S', 'M', 'L', 'XL', 'XXL']
 
-interface ProductRow {
-  id: string
-  slug: string
-  name: string
-  category: Product['category']
-  art: string
-  rail_kind: string | null
-  price: number
-  compare_at_price: number | null
-  description: string
-  details: string
-  material: string
-  colors: string
-  sizes: string
-  is_new: number
-  featured: number
-  image: string | null
+type ProductRow = Selectable<Schema['products']>
+
+export async function listCategories(db: Database): Promise<Category[]> {
+  const rows = await db.selectFrom('categories').selectAll().orderBy('position').execute()
+  return rows.map(({ art_color, slug, name, description, intro, art }) => ({
+    name,
+    description,
+    intro,
+    art,
+    slug: slug as Category['slug'],
+    artColor: art_color,
+  }))
 }
 
-export function listCategories(db: Database): Category[] {
-  const rows = db.prepare('SELECT * FROM categories ORDER BY position').all() as unknown as (Omit<
-    Category,
-    'artColor'
-  > & { art_color: string })[]
-  return rows.map(({ art_color, ...category }) => ({ ...category, artColor: art_color }))
-}
-
-export function findCategory(db: Database, slug: string) {
-  return listCategories(db).find((category) => category.slug === slug)
+export async function findCategory(db: Database, slug: string) {
+  return (await listCategories(db)).find((category) => category.slug === slug)
 }
 
 /** Stock lives on variants, so sold out variants are read from there. */
-function soldOutByProduct(db: Database) {
-  const rows = db
-    .prepare('SELECT product_id, color, size FROM variants WHERE stock = 0')
-    .all() as unknown as { product_id: string; color: string; size: string }[]
+async function soldOutByProduct(db: Database) {
+  const rows = await db.selectFrom('variants').select(['product_id', 'color', 'size']).where('stock', '=', 0).execute()
 
   const soldOut = new Map<string, string[]>()
   for (const row of rows) {
@@ -53,41 +39,43 @@ function toProduct(row: ProductRow, soldOut: Map<string, string[]>): Product {
     id: row.id,
     slug: row.slug,
     name: row.name,
-    category: row.category,
+    category: row.category as Product['category'],
     art: row.art,
     railKind: row.rail_kind ?? undefined,
     price: row.price,
     compareAtPrice: row.compare_at_price ?? undefined,
     description: row.description,
-    details: JSON.parse(row.details) as string[],
+    details: row.details,
     material: row.material,
-    colors: JSON.parse(row.colors) as ProductColor[],
-    sizes: JSON.parse(row.sizes) as string[],
+    colors: row.colors as ProductColor[],
+    sizes: row.sizes,
     soldOut: soldOut.get(row.id),
-    isNew: row.is_new === 1 || undefined,
-    featured: row.featured === 1 || undefined,
+    isNew: row.is_new || undefined,
+    featured: row.featured || undefined,
     image: row.image ?? undefined,
   }
 }
 
-export function allProducts(db: Database): Product[] {
-  const rows = db.prepare('SELECT * FROM products ORDER BY position').all() as unknown as ProductRow[]
-  const soldOut = soldOutByProduct(db)
+export async function allProducts(db: Database): Promise<Product[]> {
+  const [rows, soldOut] = await Promise.all([
+    db.selectFrom('products').selectAll().orderBy('position').execute(),
+    soldOutByProduct(db),
+  ])
   return rows.map((row) => toProduct(row, soldOut))
 }
 
-export function findProductBySlug(db: Database, slug: string) {
-  return allProducts(db).find((product) => product.slug === slug)
+export async function findProductBySlug(db: Database, slug: string) {
+  return (await allProducts(db)).find((product) => product.slug === slug)
 }
 
 /*
  * Filtering runs in memory, which is fine for a catalog of a few thousand
  * products. Move it into SQL if the catalog grows past that.
  */
-export function queryProducts(db: Database, query: ProductQuery) {
+export async function queryProducts(db: Database, query: ProductQuery) {
   const keyword = query.q?.trim().toLowerCase()
 
-  const matches = allProducts(db).filter((product) => {
+  const matches = (await allProducts(db)).filter((product) => {
     if (query.ids && !query.ids.includes(product.id)) return false
     if (query.category && product.category !== query.category) return false
     if (query.featured && !product.featured) return false
@@ -124,14 +112,14 @@ export function queryProducts(db: Database, query: ProductQuery) {
   }
 }
 
-export function relatedProducts(db: Database, product: Product, limit: number) {
-  return allProducts(db)
+export async function relatedProducts(db: Database, product: Product, limit: number) {
+  return (await allProducts(db))
     .filter((other) => other.category === product.category && other.id !== product.id)
     .slice(0, limit)
 }
 
-export function productFacets(db: Database, category?: string) {
-  const products = allProducts(db)
+export async function productFacets(db: Database, category?: string) {
+  const products = await allProducts(db)
   const scope = category ? products.filter((product) => product.category === category) : products
 
   const sizes = [...new Set(scope.flatMap((product) => product.sizes))]

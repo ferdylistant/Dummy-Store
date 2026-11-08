@@ -3,6 +3,7 @@ import cors from 'cors'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
+import { sql } from 'kysely'
 import { z } from 'zod'
 import { accountRouter, requireVillage, saveAddress } from './account.js'
 import { sessionUser, type Auth } from './auth.js'
@@ -130,53 +131,53 @@ export function createApp(db: Database, options: AppOptions) {
 
   // The Kepmendagri list from our own database: provinces, then each level down.
   // It changes only with a new data release, so browsers and CDNs may keep it a day.
-  app.get('/api/regions/children', limiter(120), (req, res) => {
+  app.get('/api/regions/children', limiter(120), async (req, res) => {
     const { parent } = z
       .object({ parent: z.string().regex(/^\d{2}(\.\d{2}){0,2}$/).optional() })
       .parse(req.query)
     res.set('Cache-Control', 'public, max-age=86400')
-    res.json({ items: regionChildren(db, parent ?? null) })
+    res.json({ items: await regionChildren(db, parent ?? null) })
   })
 
   app.use('/api/me', accountRouter(db, options.auth))
 
-  app.get('/health', (_req, res) => {
-    db.prepare('SELECT 1').get()
+  app.get('/health', async (_req, res) => {
+    await sql`SELECT 1`.execute(db)
     res.json({ status: 'ok', payments: payments ? 'ready' : 'not_configured' })
   })
 
-  app.get('/api/categories', (_req, res) => {
-    res.json({ items: listCategories(db) })
+  app.get('/api/categories', async (_req, res) => {
+    res.json({ items: await listCategories(db) })
   })
 
-  app.get('/api/categories/:slug', (req, res) => {
-    const category = findCategory(db, req.params.slug)
+  app.get('/api/categories/:slug', async (req, res) => {
+    const category = await findCategory(db, req.params.slug)
     if (!category) throw new HttpError(404, 'not_found', 'Kategori tidak ditemukan.')
     res.json(category)
   })
 
-  app.get('/api/products', (req, res) => {
-    res.json(queryProducts(db, productQuerySchema.parse(req.query)))
+  app.get('/api/products', async (req, res) => {
+    res.json(await queryProducts(db, productQuerySchema.parse(req.query)))
   })
 
-  app.get('/api/products/facets', (req, res) => {
+  app.get('/api/products/facets', async (req, res) => {
     const { category } = productQuerySchema.pick({ category: true }).parse(req.query)
-    res.json(productFacets(db, category))
+    res.json(await productFacets(db, category))
   })
 
-  app.get('/api/products/:slug', (req, res) => {
-    const product = findProductBySlug(db, req.params.slug)
+  app.get('/api/products/:slug', async (req, res) => {
+    const product = await findProductBySlug(db, req.params.slug)
     if (!product) throw new HttpError(404, 'not_found', 'Produk tidak ditemukan.')
     res.json(product)
   })
 
-  app.get('/api/products/:slug/related', (req, res) => {
-    const product = findProductBySlug(db, req.params.slug)
+  app.get('/api/products/:slug/related', async (req, res) => {
+    const product = await findProductBySlug(db, req.params.slug)
     if (!product) throw new HttpError(404, 'not_found', 'Produk tidak ditemukan.')
     const { limit } = z
       .object({ limit: z.coerce.number().int().min(1).max(12).default(4) })
       .parse(req.query)
-    res.json({ items: relatedProducts(db, product, limit) })
+    res.json({ items: await relatedProducts(db, product, limit) })
   })
 
   app.post('/api/orders', limiter(options.ordersPerMinute ?? 20), async (req, res) => {
@@ -190,11 +191,11 @@ export function createApp(db: Database, options: AppOptions) {
       siteUrl: options.siteUrl ?? options.corsOrigins[0] ?? '',
       idempotencyKey,
       userId: user?.id,
-      region: requireVillage(db, input.customer.regionCode),
+      region: await requireVillage(db, input.customer.regionCode),
     })
     if (user && input.saveAddress) {
       const { customer } = input
-      saveAddress(db, user.id, {
+      await saveAddress(db, user.id, {
         label: 'Alamat',
         recipient: customer.fullName,
         phone: customer.phone,
@@ -228,7 +229,7 @@ export function createApp(db: Database, options: AppOptions) {
       grossAmount: Number(notification.gross_amount),
       paymentType: notification.payment_type,
     }
-    const status = applyPaymentStatus(db, payment)
+    const status = await applyPaymentStatus(db, payment)
     // Unknown orders are acknowledged, so Midtrans test pings do not retry forever.
     res.json({ received: true, status: status ?? 'ignored' })
   })

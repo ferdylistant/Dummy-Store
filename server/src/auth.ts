@@ -18,7 +18,8 @@ export interface AuthOptions {
 export function createAuth(db: Database, options: AuthOptions) {
   return betterAuth({
     appName: 'Dummy Store',
-    database: db,
+    // The same Kysely instance as the store, so one database holds everything.
+    database: { db, type: 'postgres' },
     baseURL: options.baseURL,
     basePath: '/api/auth',
     secret: options.secret,

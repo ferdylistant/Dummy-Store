@@ -1,6 +1,7 @@
 import { createApp } from './app.js'
 import { createAuth, migrateAuth } from './auth.js'
 import { config } from './config.js'
+import { importLegacySqlite } from './db/import-sqlite.js'
 import { openDatabase } from './db/index.js'
 import { createMailer } from './mail.js'
 import { expireOverdueOrders } from './orders.js'
@@ -9,7 +10,7 @@ import { createBiteshipRegions } from './regions.js'
 
 const SWEEP_MS = 5 * 60_000
 
-const db = openDatabase(config.databasePath)
+const db = await openDatabase(config.databaseUrl)
 const { serverKey, clientKey, isProduction } = config.midtrans
 
 const payments =
@@ -30,6 +31,9 @@ const auth = createAuth(db, {
   google,
 })
 await migrateAuth(auth)
+
+const imported = await importLegacySqlite(db)
+if (imported) console.log('Data lama dari data/store.db dipindahkan ke PostgreSQL:', imported)
 
 if (!config.mail.resendApiKey) console.warn('RESEND_API_KEY belum diisi. Email ditampilkan di log ini.')
 const regions = config.biteship.apiKey ? createBiteshipRegions(config.biteship.apiKey) : null
@@ -60,8 +64,7 @@ sweeper.unref()
 function shutdown() {
   clearInterval(sweeper)
   server.close(() => {
-    db.close()
-    process.exit(0)
+    db.destroy().finally(() => process.exit(0))
   })
 }
 

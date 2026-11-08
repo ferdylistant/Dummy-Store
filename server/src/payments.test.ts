@@ -5,6 +5,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { createApp } from './app.js'
 import type { Auth } from './auth.js'
 import { testAuth } from './testing/auth.js'
+import { sql } from 'kysely'
 import { openDatabase, type Database } from './db/index.js'
 import { expireOverdueOrders } from './orders.js'
 import {
@@ -60,14 +61,20 @@ describe('payments', () => {
   let fake: ReturnType<typeof fakeGateway>
   let auth: Auth
 
-  const stock = (item: typeof hoodie) =>
+  const stock = async (item: typeof hoodie) =>
     (
-      db
-        .prepare('SELECT stock FROM variants WHERE product_id = ? AND color = ? AND size = ?')
-        .get(item.productId, item.color, item.size) as { stock: number }
+      await db
+        .selectFrom('variants')
+        .select('stock')
+        .where('product_id', '=', item.productId)
+        .where('color', '=', item.color)
+        .where('size', '=', item.size)
+        .executeTakeFirstOrThrow()
     ).stock
-  const status = (orderNumber: string) =>
-    (db.prepare('SELECT status FROM orders WHERE order_number = ?').get(orderNumber) as { status: string })
+  const resetStock = () =>
+    sql`UPDATE variants SET stock = 25 WHERE NOT (color = 'Navy' AND product_id = 'p007' AND size IN ('S', 'M'))`.execute(db)
+  const status = async (orderNumber: string) =>
+    (await db.selectFrom('orders').select('status').where('order_number', '=', orderNumber).executeTakeFirstOrThrow())
       .status
 
   const post = async (path: string, body: unknown, headers: Record<string, string> = {}) => {
@@ -88,7 +95,7 @@ describe('payments', () => {
     })
 
   before(async () => {
-    db = openDatabase(':memory:')
+    db = await openDatabase(':memory:')
     fake = fakeGateway()
     ;({ auth } = await testAuth(db))
     await new Promise<void>((resolve) => {
@@ -103,16 +110,16 @@ describe('payments', () => {
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   })
 
-  after(() => {
+  after(async () => {
     server.close()
-    db.close()
+    await db.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fake.gateway.fail = false
     fake.statuses.clear()
     fake.requests.length = 0
-    db.exec("UPDATE variants SET stock = 25 WHERE NOT (color = 'Navy' AND product_id = 'p007' AND size IN ('S', 'M'))")
+    await resetStock()
   })
 
   it('creates a payment for the server total', async () => {
@@ -149,12 +156,12 @@ describe('payments', () => {
     const headers = { 'Idempotency-Key': 'gagal-lalu-ulang' }
     const failed = await post('/api/orders', { customer, items: [hoodie] }, headers)
     assert.equal(failed.status, 502)
-    assert.equal(stock(hoodie), 25)
+    assert.equal(await stock(hoodie), 25)
 
     fake.gateway.fail = false
     const retried = await post('/api/orders', { customer, items: [hoodie] }, headers)
     assert.equal(retried.status, 201)
-    assert.equal(stock(hoodie), 23)
+    assert.equal(await stock(hoodie), 23)
   })
 
   it('returns the same payment for a repeated request', async () => {
@@ -169,7 +176,7 @@ describe('payments', () => {
     const { body } = await post('/api/orders', { customer, items: [hoodie] })
     const forged = await notify(body.orderNumber, 'settlement', `${body.total}.00`, 'kunci-palsu')
     assert.equal(forged.status, 403)
-    assert.equal(status(body.orderNumber), 'awaiting_payment')
+    assert.equal(await status(body.orderNumber), 'awaiting_payment')
   })
 
   it('marks an order paid from a verified notification', async () => {
@@ -184,7 +191,7 @@ describe('payments', () => {
     const again = await notify(body.orderNumber, 'settlement', `${body.total}.00`)
     assert.equal(first.body.status, 'paid')
     assert.equal(again.body.status, 'paid')
-    assert.equal(stock(hoodie), 23, 'paid stock stays taken')
+    assert.equal(await stock(hoodie), 23, 'paid stock stays taken')
   })
 
   it('trusts the status API over the notification body', async () => {
@@ -207,8 +214,8 @@ describe('payments', () => {
     })
     await notify(body.orderNumber, 'expire', `${body.total}.00`)
     await notify(body.orderNumber, 'expire', `${body.total}.00`)
-    assert.equal(status(body.orderNumber), 'expired')
-    assert.equal(stock(hoodie), 25)
+    assert.equal(await status(body.orderNumber), 'expired')
+    assert.equal(await stock(hoodie), 25)
   })
 
   it('refuses a payment for the wrong amount', async () => {
@@ -220,7 +227,7 @@ describe('payments', () => {
     })
     const result = await notify(body.orderNumber, 'settlement', '1000.00')
     assert.equal(result.status, 422)
-    assert.equal(status(body.orderNumber), 'awaiting_payment')
+    assert.equal(await status(body.orderNumber), 'awaiting_payment')
   })
 
   it('keeps a card payment under fraud review waiting', async () => {
@@ -266,12 +273,10 @@ describe('payments', () => {
 
   it('releases unpaid orders after the deadline', async () => {
     const { body } = await post('/api/orders', { customer, items: [hoodie] })
-    db.prepare("UPDATE orders SET expires_at = '2000-01-01T00:00:00.000Z' WHERE order_number = ?").run(
-      body.orderNumber,
-    )
+    await db.updateTable('orders').set({ expires_at: '2000-01-01T00:00:00.000Z' }).where('order_number', '=', body.orderNumber).execute()
     assert.equal(await expireOverdueOrders(db, fake.gateway), 1)
-    assert.equal(status(body.orderNumber), 'expired')
-    assert.equal(stock(hoodie), 25)
+    assert.equal(await status(body.orderNumber), 'expired')
+    assert.equal(await stock(hoodie), 25)
   })
 
   it('refuses orders when Midtrans is not configured', async () => {
@@ -284,7 +289,7 @@ describe('payments', () => {
       body: JSON.stringify({ customer, items: [hoodie] }),
     })
     assert.equal(response.status, 503)
-    assert.equal(stock(hoodie), 25, 'nothing is reserved')
+    assert.equal(await stock(hoodie), 25, 'nothing is reserved')
     bare.close()
   })
 })

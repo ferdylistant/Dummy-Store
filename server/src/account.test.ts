@@ -92,7 +92,7 @@ describe('accounts', () => {
   }
 
   before(async () => {
-    db = openDatabase(':memory:')
+    db = await openDatabase(':memory:')
     // Email links need the final URL, so find a free port before creating auth.
     const port = await new Promise<number>((resolve) => {
       const probe = createServer().listen(0, () => {
@@ -120,9 +120,9 @@ describe('accounts', () => {
     base = `http://127.0.0.1:${port}`
   })
 
-  after(() => {
+  after(async () => {
     server.close()
-    db.close()
+    await db.destroy()
   })
 
   it('requires email confirmation before signing in', async () => {

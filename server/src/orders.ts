@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
-import { transaction, type Database } from './db/index.js'
+import { sql, type Selectable } from 'kysely'
+import type { Database, Schema } from './db/index.js'
 import { HttpError } from './errors.js'
 import type {
   PaymentGateway,
@@ -83,21 +84,14 @@ export interface OrderResult {
   } | null
 }
 
-interface OrderRow {
-  id: number
-  order_number: string
-  status: OrderStatus
-  subtotal: number
-  shipping_cost: number
-  total: number
-  payment_method: PaymentMethod
-  payment_details: string | null
-  expires_at: string | null
-}
+type OrderRow = Pick<
+  Selectable<Schema['orders']>,
+  'id' | 'order_number' | 'status' | 'subtotal' | 'shipping_cost' | 'total' | 'payment_method' | 'payment_details' | 'expires_at'
+>
 
 function instructionsOf(row: OrderRow): PaymentInstructions | null {
   if (row.status !== 'awaiting_payment' || !row.payment_details) return null
-  return JSON.parse(row.payment_details) as PaymentInstructions
+  return row.payment_details as PaymentInstructions
 }
 
 function newOrderNumber() {
@@ -117,25 +111,23 @@ function mergeItems(items: OrderInput['items']) {
 
 function findOrder(db: Database, column: 'order_number' | 'idempotency_key', value: string) {
   return db
-    .prepare(
-      `SELECT id, order_number, status, subtotal, shipping_cost, total, payment_method, payment_details,
-         expires_at
-       FROM orders WHERE ${column} = ?`,
-    )
-    .get(value) as OrderRow | undefined
+    .selectFrom('orders')
+    .select(['id', 'order_number', 'status', 'subtotal', 'shipping_cost', 'total', 'payment_method', 'payment_details', 'expires_at'])
+    .where(column, '=', value)
+    .executeTakeFirst()
 }
 
 function toResult(row: OrderRow, gateway: PaymentGateway): OrderResult {
   const instructions = instructionsOf(row)
   return {
     orderNumber: row.order_number,
-    status: row.status,
+    status: row.status as OrderStatus,
     subtotal: row.subtotal,
     shippingCost: row.shipping_cost,
     total: row.total,
     payment: instructions
       ? {
-          method: row.payment_method,
+          method: row.payment_method as PaymentMethod,
           instructions,
           clientKey: gateway.clientKey,
           scriptUrl: gateway.scriptUrl,
@@ -153,94 +145,102 @@ function reserveOrder(
   userId?: string,
 ) {
   const items = mergeItems(input.items)
-  const findProduct = db.prepare('SELECT name, price FROM products WHERE id = ?')
-  const findVariant = db.prepare(
-    'SELECT stock FROM variants WHERE product_id = ? AND color = ? AND size = ?',
-  )
-  const takeStock = db.prepare(
-    'UPDATE variants SET stock = stock - ? WHERE product_id = ? AND color = ? AND size = ? AND stock >= ?',
-  )
 
-  return transaction(db, () => {
-    const lines = items.map((item) => {
-      const product = findProduct.get(item.productId) as { name: string; price: number } | undefined
-      const variant = findVariant.get(item.productId, item.color, item.size)
-      if (!product || !variant) {
-        throw new HttpError(422, 'unknown_variant', 'Ada produk yang tidak tersedia lagi.', {
+  return db.transaction().execute(async (trx) => {
+    const lines = []
+    for (const item of items) {
+      const product = await trx
+        .selectFrom('products')
+        .select(['name', 'price'])
+        .where('id', '=', item.productId)
+        .executeTakeFirst()
+      // Taking stock only where enough is left keeps two buyers from both getting the last one.
+      const taken = product
+        ? await trx
+            .updateTable('variants')
+            .set((eb) => ({ stock: eb('stock', '-', item.quantity) }))
+            .where('product_id', '=', item.productId)
+            .where('color', '=', item.color)
+            .where('size', '=', item.size)
+            .where('stock', '>=', item.quantity)
+            .executeTakeFirst()
+        : null
+      if (!product || !taken || Number(taken.numUpdatedRows) === 0) {
+        const exists =
+          product &&
+          (await trx
+            .selectFrom('variants')
+            .select('stock')
+            .where('product_id', '=', item.productId)
+            .where('color', '=', item.color)
+            .where('size', '=', item.size)
+            .executeTakeFirst())
+        if (!product || !exists) {
+          throw new HttpError(422, 'unknown_variant', 'Ada produk yang tidak tersedia lagi.', {
+            productId: item.productId,
+          })
+        }
+        throw new HttpError(409, 'out_of_stock', `Stok ${product.name} (${item.color}, ${item.size}) tidak mencukupi.`, {
           productId: item.productId,
+          color: item.color,
+          size: item.size,
         })
       }
-
-      const taken = takeStock.run(item.quantity, item.productId, item.color, item.size, item.quantity)
-      if (taken.changes === 0) {
-        throw new HttpError(
-          409,
-          'out_of_stock',
-          `Stok ${product.name} (${item.color}, ${item.size}) tidak mencukupi.`,
-          { productId: item.productId, color: item.color, size: item.size },
-        )
-      }
-
-      return { ...item, name: product.name, unitPrice: product.price }
-    })
+      lines.push({ ...item, name: product.name, unitPrice: product.price })
+    }
 
     const subtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
     const shipping = shippingCost(subtotal, input.customer.shippingMethod)
     const total = subtotal + shipping
     const orderNumber = newOrderNumber()
-    const expiresAt = new Date(
-      Date.now() + paymentExpiryMinutes(input.customer.paymentMethod) * 60_000,
-    ).toISOString()
+    const expiresAt = new Date(Date.now() + paymentExpiryMinutes(input.customer.paymentMethod) * 60_000)
     const { customer } = input
 
-    const order = db
-      .prepare(
-        `INSERT INTO orders (order_number, idempotency_key, user_id, status, email, full_name, phone,
-          address, district, city, province, postal_code, village, region_code, notes, shipping_method,
-          payment_method, subtotal, shipping_cost, total, expires_at)
-        VALUES (?, ?, ?, 'awaiting_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        orderNumber,
-        idempotencyKey ?? null,
-        userId ?? null,
-        customer.email,
-        customer.fullName,
-        customer.phone,
-        customer.address,
-        region.district,
-        region.city,
-        region.province,
-        region.postalCode,
-        region.village,
-        region.regionCode,
-        customer.notes || null,
-        customer.shippingMethod,
-        customer.paymentMethod,
+    const order = await trx
+      .insertInto('orders')
+      .values({
+        order_number: orderNumber,
+        idempotency_key: idempotencyKey ?? null,
+        user_id: userId ?? null,
+        status: 'awaiting_payment',
+        email: customer.email,
+        full_name: customer.fullName,
+        phone: customer.phone,
+        address: customer.address,
+        district: region.district,
+        city: region.city,
+        province: region.province,
+        postal_code: region.postalCode,
+        village: region.village,
+        region_code: region.regionCode,
+        notes: customer.notes || null,
+        shipping_method: customer.shippingMethod,
+        payment_method: customer.paymentMethod,
         subtotal,
-        shipping,
+        shipping_cost: shipping,
         total,
-        expiresAt,
-      )
+        expires_at: expiresAt,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow()
 
-    const insertLine = db.prepare(
-      `INSERT INTO order_items (order_id, product_id, product_name, color, size, quantity, unit_price, line_total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    for (const line of lines) {
-      insertLine.run(
-        order.lastInsertRowid,
-        line.productId,
-        line.name,
-        line.color,
-        line.size,
-        line.quantity,
-        line.unitPrice,
-        line.unitPrice * line.quantity,
+    await trx
+      .insertInto('order_items')
+      .values(
+        lines.map((line) => ({
+          order_id: order.id,
+          product_id: line.productId,
+          product_name: line.name,
+          color: line.color,
+          size: line.size,
+          quantity: line.quantity,
+          unit_price: line.unitPrice,
+          line_total: line.unitPrice * line.quantity,
+        })),
       )
-    }
+      .execute()
 
-    return { id: Number(order.lastInsertRowid), orderNumber, subtotal, shipping, total, lines }
+    return { id: order.id, orderNumber, subtotal, shipping, total, lines }
   })
 }
 
@@ -249,21 +249,29 @@ function reserveOrder(
  * for payment can be released, so stock is never returned twice.
  */
 function releaseOrder(db: Database, orderId: number, status: 'expired' | 'cancelled') {
-  return transaction(db, () => {
-    const updated = db
-      .prepare(
-        "UPDATE orders SET status = ?, idempotency_key = NULL WHERE id = ? AND status = 'awaiting_payment'",
-      )
-      .run(status, orderId)
-    if (updated.changes === 0) return false
+  return db.transaction().execute(async (trx) => {
+    const updated = await trx
+      .updateTable('orders')
+      .set({ status, idempotency_key: null })
+      .where('id', '=', orderId)
+      .where('status', '=', 'awaiting_payment')
+      .executeTakeFirst()
+    if (Number(updated.numUpdatedRows) === 0) return false
 
-    const items = db
-      .prepare('SELECT product_id, color, size, quantity FROM order_items WHERE order_id = ?')
-      .all(orderId) as unknown as { product_id: string; color: string; size: string; quantity: number }[]
-    const restock = db.prepare(
-      'UPDATE variants SET stock = stock + ? WHERE product_id = ? AND color = ? AND size = ?',
-    )
-    for (const item of items) restock.run(item.quantity, item.product_id, item.color, item.size)
+    const items = await trx
+      .selectFrom('order_items')
+      .select(['product_id', 'color', 'size', 'quantity'])
+      .where('order_id', '=', orderId)
+      .execute()
+    for (const item of items) {
+      await trx
+        .updateTable('variants')
+        .set((eb) => ({ stock: eb('stock', '+', item.quantity) }))
+        .where('product_id', '=', item.product_id)
+        .where('color', '=', item.color)
+        .where('size', '=', item.size)
+        .execute()
+    }
     return true
   })
 }
@@ -275,12 +283,12 @@ export async function createOrder(
   options: { siteUrl: string; idempotencyKey?: string; userId?: string; region: ResolvedVillage },
 ): Promise<OrderResult> {
   if (options.idempotencyKey) {
-    const previous = findOrder(db, 'idempotency_key', options.idempotencyKey)
+    const previous = await findOrder(db, 'idempotency_key', options.idempotencyKey)
     if (previous) return toResult(previous, gateway)
   }
 
   const { region } = options
-  const order = reserveOrder(db, input, region, options.idempotencyKey, options.userId)
+  const order = await reserveOrder(db, input, region, options.idempotencyKey, options.userId)
   const { customer } = input
 
   try {
@@ -311,9 +319,13 @@ export async function createOrder(
       method: customer.paymentMethod,
     })
 
-    db.prepare('UPDATE orders SET payment_details = ? WHERE id = ?').run(JSON.stringify(payment), order.id)
+    await db
+      .updateTable('orders')
+      .set({ payment_details: JSON.stringify(payment) })
+      .where('id', '=', order.id)
+      .execute()
   } catch (error) {
-    releaseOrder(db, order.id, 'cancelled')
+    await releaseOrder(db, order.id, 'cancelled')
     console.error('Midtrans transaction failed', error)
     throw new HttpError(
       502,
@@ -322,7 +334,7 @@ export async function createOrder(
     )
   }
 
-  return toResult(findOrder(db, 'order_number', order.orderNumber)!, gateway)
+  return toResult((await findOrder(db, 'order_number', order.orderNumber))!, gateway)
 }
 
 function statusFromGateway(payment: PaymentStatus): OrderStatus | null {
@@ -348,8 +360,8 @@ function statusFromGateway(payment: PaymentStatus): OrderStatus | null {
 }
 
 /** Applies a payment result. Repeated or out-of-order results change nothing. */
-export function applyPaymentStatus(db: Database, payment: PaymentStatus) {
-  const order = findOrder(db, 'order_number', payment.orderId)
+export async function applyPaymentStatus(db: Database, payment: PaymentStatus) {
+  const order = await findOrder(db, 'order_number', payment.orderId)
   if (!order) return null
 
   if (payment.grossAmount !== order.total) {
@@ -358,21 +370,24 @@ export function applyPaymentStatus(db: Database, payment: PaymentStatus) {
   }
 
   const next = statusFromGateway(payment)
-  if (!next || next === order.status) return order.status
+  if (!next || next === order.status) return order.status as OrderStatus
 
   if (order.status === 'awaiting_payment') {
     if (next === 'paid') {
-      db.prepare(
-        "UPDATE orders SET status = 'paid', paid_at = datetime('now') WHERE id = ? AND status = 'awaiting_payment'",
-      ).run(order.id)
+      await db
+        .updateTable('orders')
+        .set({ status: 'paid', paid_at: sql`now()` })
+        .where('id', '=', order.id)
+        .where('status', '=', 'awaiting_payment')
+        .execute()
     } else if (next === 'expired' || next === 'cancelled') {
-      releaseOrder(db, order.id, next)
+      await releaseOrder(db, order.id, next)
     }
   } else if (order.status === 'paid' && next === 'refunded') {
-    db.prepare("UPDATE orders SET status = 'refunded' WHERE id = ?").run(order.id)
+    await db.updateTable('orders').set({ status: 'refunded' }).where('id', '=', order.id).execute()
   }
 
-  return findOrder(db, 'order_number', order.order_number)!.status
+  return (await findOrder(db, 'order_number', order.order_number))!.status as OrderStatus
 }
 
 /**
@@ -380,7 +395,7 @@ export function applyPaymentStatus(db: Database, payment: PaymentStatus) {
  * also keeps local development working when notifications cannot reach it.
  */
 export async function orderStatus(db: Database, gateway: PaymentGateway | null, orderNumber: string) {
-  let order = findOrder(db, 'order_number', orderNumber)
+  let order = await findOrder(db, 'order_number', orderNumber)
   if (!order) return null
 
   if (order.status === 'awaiting_payment' && gateway) {
@@ -390,19 +405,19 @@ export async function orderStatus(db: Database, gateway: PaymentGateway | null, 
     } catch (error) {
       console.error('Midtrans status check failed', error)
     }
-    if (payment) applyPaymentStatus(db, payment)
+    if (payment) await applyPaymentStatus(db, payment)
 
-    order = findOrder(db, 'order_number', orderNumber)!
-    const overdue = order.expires_at && Date.parse(order.expires_at) + EXPIRY_GRACE_MS < Date.now()
+    order = (await findOrder(db, 'order_number', orderNumber))!
+    const overdue = order.expires_at && new Date(order.expires_at).getTime() + EXPIRY_GRACE_MS < Date.now()
     if (order.status === 'awaiting_payment' && overdue && !payment) {
-      releaseOrder(db, order.id, 'expired')
-      order = findOrder(db, 'order_number', orderNumber)!
+      await releaseOrder(db, order.id, 'expired')
+      order = (await findOrder(db, 'order_number', orderNumber))!
     }
   }
 
   return {
     orderNumber: order.order_number,
-    status: order.status,
+    status: order.status as OrderStatus,
     total: order.total,
     expiresAt: order.expires_at,
     paymentMethod: order.payment_method,
@@ -412,10 +427,13 @@ export async function orderStatus(db: Database, gateway: PaymentGateway | null, 
 
 /** Releases orders left unpaid past their deadline. Runs on a timer. */
 export async function expireOverdueOrders(db: Database, gateway: PaymentGateway | null) {
-  const cutoff = new Date(Date.now() - EXPIRY_GRACE_MS).toISOString()
-  const overdue = db
-    .prepare("SELECT order_number FROM orders WHERE status = 'awaiting_payment' AND expires_at < ?")
-    .all(cutoff) as unknown as { order_number: string }[]
+  const cutoff = new Date(Date.now() - EXPIRY_GRACE_MS)
+  const overdue = await db
+    .selectFrom('orders')
+    .select('order_number')
+    .where('status', '=', 'awaiting_payment')
+    .where('expires_at', '<', cutoff)
+    .execute()
   for (const { order_number } of overdue) await orderStatus(db, gateway, order_number)
   return overdue.length
 }

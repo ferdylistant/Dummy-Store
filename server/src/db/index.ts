@@ -1,257 +1,368 @@
 import { mkdirSync, readFileSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { gunzipSync } from 'node:zlib'
+import { Kysely, PostgresDialect, sql, type ColumnType, type Dialect, type Generated } from 'kysely'
+import { Migrator, type Migration } from 'kysely/migration'
 import { categories, products } from './seed-data.js'
 
-export type Database = DatabaseSync
+/** Stored as timestamptz. Read back as a Date, written as a Date or ISO string. */
+type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>
+/** JSON values are written as text and read back parsed. */
+type Json<T> = ColumnType<T, string, string>
+
+export interface Schema {
+  categories: {
+    slug: string
+    name: string
+    description: string
+    intro: string
+    art: string
+    art_color: string
+    position: number
+  }
+  products: {
+    id: string
+    slug: string
+    name: string
+    category: string
+    art: string
+    rail_kind: string | null
+    price: number
+    compare_at_price: number | null
+    description: string
+    details: Json<string[]>
+    material: string
+    colors: Json<{ name: string; hex: string }[]>
+    sizes: Json<string[]>
+    is_new: boolean
+    featured: boolean
+    image: string | null
+    position: number
+  }
+  variants: {
+    product_id: string
+    color: string
+    size: string
+    stock: number
+  }
+  orders: {
+    id: Generated<number>
+    order_number: string
+    idempotency_key: string | null
+    user_id: string | null
+    status: Generated<string>
+    email: string
+    full_name: string
+    phone: string
+    address: string
+    district: string
+    city: string
+    province: string
+    village: string | null
+    postal_code: string
+    region_code: string | null
+    notes: string | null
+    shipping_method: string
+    payment_method: string
+    subtotal: number
+    shipping_cost: number
+    total: number
+    payment_details: Json<unknown> | null
+    paid_at: Timestamp | null
+    expires_at: Timestamp | null
+    created_at: Timestamp
+  }
+  order_items: {
+    order_id: number
+    product_id: string
+    product_name: string
+    color: string
+    size: string
+    quantity: number
+    unit_price: number
+    line_total: number
+  }
+  addresses: {
+    id: Generated<number>
+    user_id: string
+    label: string
+    recipient: string
+    phone: string
+    address: string
+    district: string
+    city: string
+    province: string
+    village: string | null
+    postal_code: string
+    region_code: string | null
+    is_default: Generated<boolean>
+    created_at: Timestamp
+  }
+  user_preferences: {
+    user_id: string
+    order_updates: Generated<boolean>
+    promotions: Generated<boolean>
+  }
+  regions: {
+    code: string
+    name: string
+    level: number
+    parent: string | null
+    postal_code: string | null
+  }
+}
+
+export type Database = Kysely<Schema>
 
 const DEFAULT_STOCK = 25
 
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS categories (
-    slug TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL,
-    intro TEXT NOT NULL,
-    art TEXT NOT NULL,
-    art_color TEXT NOT NULL,
-    position INTEGER NOT NULL
-  );
+/**
+ * Each migration runs once, in name order, and is recorded in the database.
+ * Add a new entry for every change. Never edit one that has shipped.
+ */
+const MIGRATIONS: Record<string, Migration> = {
+  '001_initial': {
+    async up(db) {
+      for (const statement of [
+        sql`CREATE TABLE categories (
+          slug text PRIMARY KEY,
+          name text NOT NULL,
+          description text NOT NULL,
+          intro text NOT NULL,
+          art text NOT NULL,
+          art_color text NOT NULL,
+          position integer NOT NULL
+        )`,
+        sql`CREATE TABLE products (
+          id text PRIMARY KEY,
+          slug text NOT NULL UNIQUE,
+          name text NOT NULL,
+          category text NOT NULL REFERENCES categories (slug),
+          art text NOT NULL,
+          rail_kind text,
+          price integer NOT NULL CHECK (price >= 0),
+          compare_at_price integer,
+          description text NOT NULL,
+          details jsonb NOT NULL,
+          material text NOT NULL,
+          colors jsonb NOT NULL,
+          sizes jsonb NOT NULL,
+          is_new boolean NOT NULL DEFAULT false,
+          featured boolean NOT NULL DEFAULT false,
+          image text,
+          position integer NOT NULL
+        )`,
+        sql`CREATE TABLE variants (
+          product_id text NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+          color text NOT NULL,
+          size text NOT NULL,
+          stock integer NOT NULL CHECK (stock >= 0),
+          PRIMARY KEY (product_id, color, size)
+        )`,
+        sql`CREATE TABLE orders (
+          id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+          order_number text NOT NULL UNIQUE,
+          idempotency_key text UNIQUE,
+          user_id text,
+          status text NOT NULL DEFAULT 'awaiting_payment',
+          email text NOT NULL,
+          full_name text NOT NULL,
+          phone text NOT NULL,
+          address text NOT NULL,
+          district text NOT NULL,
+          city text NOT NULL,
+          province text NOT NULL,
+          village text,
+          postal_code text NOT NULL,
+          region_code text,
+          notes text,
+          shipping_method text NOT NULL,
+          payment_method text NOT NULL,
+          subtotal integer NOT NULL,
+          shipping_cost integer NOT NULL,
+          total integer NOT NULL,
+          payment_details jsonb,
+          paid_at timestamptz,
+          expires_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT now()
+        )`,
+        sql`CREATE INDEX orders_awaiting ON orders (expires_at) WHERE status = 'awaiting_payment'`,
+        sql`CREATE INDEX orders_user ON orders (user_id)`,
+        sql`CREATE TABLE order_items (
+          order_id integer NOT NULL REFERENCES orders (id),
+          product_id text NOT NULL,
+          product_name text NOT NULL,
+          color text NOT NULL,
+          size text NOT NULL,
+          quantity integer NOT NULL CHECK (quantity > 0),
+          unit_price integer NOT NULL,
+          line_total integer NOT NULL
+        )`,
+        sql`CREATE INDEX order_items_order ON order_items (order_id)`,
+        sql`CREATE TABLE addresses (
+          id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+          user_id text NOT NULL,
+          label text NOT NULL,
+          recipient text NOT NULL,
+          phone text NOT NULL,
+          address text NOT NULL,
+          district text NOT NULL,
+          city text NOT NULL,
+          province text NOT NULL,
+          village text,
+          postal_code text NOT NULL,
+          region_code text,
+          is_default boolean NOT NULL DEFAULT false,
+          created_at timestamptz NOT NULL DEFAULT now()
+        )`,
+        sql`CREATE INDEX addresses_user ON addresses (user_id)`,
+        sql`CREATE TABLE user_preferences (
+          user_id text PRIMARY KEY,
+          order_updates boolean NOT NULL DEFAULT true,
+          promotions boolean NOT NULL DEFAULT false
+        )`,
+        // Kepmendagri regions: province (1), city or regency (2), district (3),
+        // village (4). Only villages carry a postal code.
+        sql`CREATE TABLE regions (
+          code text PRIMARY KEY,
+          name text NOT NULL,
+          level smallint NOT NULL,
+          parent text,
+          postal_code text
+        )`,
+        sql`CREATE INDEX regions_parent ON regions (parent, name)`,
+      ]) {
+        await statement.execute(db)
+      }
+    },
+  },
+  // Lets ids be written when moving data in, such as from the old SQLite file.
+  '002_ids_by_default': {
+    async up(db) {
+      await sql`ALTER TABLE orders ALTER COLUMN id SET GENERATED BY DEFAULT`.execute(db)
+      await sql`ALTER TABLE addresses ALTER COLUMN id SET GENERATED BY DEFAULT`.execute(db)
+    },
+  },
+}
 
-  CREATE TABLE IF NOT EXISTS products (
-    id TEXT PRIMARY KEY,
-    slug TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL REFERENCES categories(slug),
-    art TEXT NOT NULL,
-    rail_kind TEXT,
-    price INTEGER NOT NULL CHECK (price >= 0),
-    compare_at_price INTEGER,
-    description TEXT NOT NULL,
-    details TEXT NOT NULL,
-    material TEXT NOT NULL,
-    colors TEXT NOT NULL,
-    sizes TEXT NOT NULL,
-    is_new INTEGER NOT NULL DEFAULT 0,
-    featured INTEGER NOT NULL DEFAULT 0,
-    image TEXT,
-    position INTEGER NOT NULL
-  );
+/**
+ * A postgres:// URL connects to PostgreSQL, such as Neon in production.
+ * Anything else is a folder for PGlite, a real PostgreSQL that runs inside
+ * Node, so development needs nothing installed. ":memory:" keeps nothing.
+ */
+async function dialectFor(url: string): Promise<Dialect> {
+  if (/^postgres(ql)?:\/\//.test(url)) {
+    const { Pool } = await import('pg')
+    return new PostgresDialect({
+      pool: new Pool({ connectionString: url, max: Number(process.env.DATABASE_POOL_MAX ?? 5) }),
+    })
+  }
+  const { PGlite } = await import('@electric-sql/pglite')
+  const { PGliteDialect } = await import('kysely-pglite-dialect')
+  if (url !== ':memory:') mkdirSync(url, { recursive: true })
+  return new PGliteDialect(new PGlite(url === ':memory:' ? undefined : url))
+}
 
-  CREATE TABLE IF NOT EXISTS variants (
-    product_id TEXT NOT NULL REFERENCES products(id),
-    color TEXT NOT NULL,
-    size TEXT NOT NULL,
-    stock INTEGER NOT NULL CHECK (stock >= 0),
-    PRIMARY KEY (product_id, color, size)
-  );
-
-  CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY,
-    order_number TEXT NOT NULL UNIQUE,
-    idempotency_key TEXT UNIQUE,
-    status TEXT NOT NULL DEFAULT 'pending',
-    email TEXT NOT NULL,
-    full_name TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    address TEXT NOT NULL,
-    city TEXT NOT NULL,
-    province TEXT NOT NULL,
-    postal_code TEXT NOT NULL,
-    notes TEXT,
-    shipping_method TEXT NOT NULL,
-    payment_method TEXT NOT NULL,
-    subtotal INTEGER NOT NULL,
-    shipping_cost INTEGER NOT NULL,
-    total INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS order_items (
-    order_id INTEGER NOT NULL REFERENCES orders(id),
-    product_id TEXT NOT NULL REFERENCES products(id),
-    product_name TEXT NOT NULL,
-    color TEXT NOT NULL,
-    size TEXT NOT NULL,
-    quantity INTEGER NOT NULL CHECK (quantity > 0),
-    unit_price INTEGER NOT NULL,
-    line_total INTEGER NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS addresses (
-    id INTEGER PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    label TEXT NOT NULL,
-    recipient TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    address TEXT NOT NULL,
-    district TEXT NOT NULL,
-    city TEXT NOT NULL,
-    province TEXT NOT NULL,
-    postal_code TEXT NOT NULL,
-    area_id TEXT,
-    is_default INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-
-  CREATE INDEX IF NOT EXISTS addresses_user ON addresses (user_id);
-
-  -- Kepmendagri regions: province (1), city or regency (2), district (3),
-  -- village (4). Only villages carry a postal code.
-  CREATE TABLE IF NOT EXISTS regions (
-    code TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    level INTEGER NOT NULL,
-    parent TEXT,
-    postal_code TEXT
-  );
-
-  CREATE INDEX IF NOT EXISTS regions_parent ON regions (parent, name);
-
-  CREATE TABLE IF NOT EXISTS user_preferences (
-    user_id TEXT PRIMARY KEY,
-    order_updates INTEGER NOT NULL DEFAULT 1,
-    promotions INTEGER NOT NULL DEFAULT 0
-  );
-`
-
-export function openDatabase(path: string): Database {
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-  const db = new DatabaseSync(path)
-  db.exec('PRAGMA foreign_keys = ON')
-  db.exec(SCHEMA)
-  migrate(db)
-  seed(db)
-  seedRegions(db)
+export async function openDatabase(url: string): Promise<Database> {
+  const db = new Kysely<Schema>({ dialect: await dialectFor(url) })
+  const migrator = new Migrator({ db, provider: { getMigrations: async () => MIGRATIONS } })
+  const { error } = await migrator.migrateToLatest()
+  if (error) throw error
+  await seedCatalog(db)
+  await seedRegions(db)
   return db
 }
 
-const REGIONS_FILE = new URL('../../resources/regions.tsv.gz', import.meta.url)
+/** Sample catalog for a new database. A database that has categories is left alone. */
+async function seedCatalog(db: Database) {
+  if (await db.selectFrom('categories').select('slug').limit(1).executeTakeFirst()) return
 
-/** Loads the region list once. About 92 thousand rows, in one transaction. */
-function seedRegions(db: Database) {
-  if (db.prepare('SELECT 1 FROM regions LIMIT 1').get()) return
-  const rows = gunzipSync(readFileSync(REGIONS_FILE)).toString('utf8').split('\n')
-  const insert = db.prepare('INSERT INTO regions (code, name, level, parent, postal_code) VALUES (?, ?, ?, ?, ?)')
-  transaction(db, () => {
-    for (const row of rows) {
-      if (!row) continue
-      const [code, name, postal] = row.split('\t')
-      const parts = code.split('.')
-      insert.run(code, name, parts.length, parts.length > 1 ? parts.slice(0, -1).join('.') : null, postal || null)
-    }
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .insertInto('categories')
+      .values(
+        categories.map((category, position) => ({
+          slug: category.slug,
+          name: category.name,
+          description: category.description,
+          intro: category.intro,
+          art: category.art,
+          art_color: category.artColor,
+          position,
+        })),
+      )
+      .execute()
+
+    await trx
+      .insertInto('products')
+      .values(
+        products.map((product, position) => ({
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          category: product.category,
+          art: product.art,
+          rail_kind: product.railKind ?? null,
+          price: product.price,
+          compare_at_price: product.compareAtPrice ?? null,
+          description: product.description,
+          details: JSON.stringify(product.details),
+          material: product.material,
+          colors: JSON.stringify(product.colors),
+          sizes: JSON.stringify(product.sizes),
+          is_new: Boolean(product.isNew),
+          featured: Boolean(product.featured),
+          image: product.image ?? null,
+          position,
+        })),
+      )
+      .execute()
+
+    await trx
+      .insertInto('variants')
+      .values(
+        products.flatMap((product) =>
+          product.colors.flatMap((color) =>
+            product.sizes.map((size) => ({
+              product_id: product.id,
+              color: color.name,
+              size,
+              stock: product.soldOut?.includes(`${color.name}|${size}`) ? 0 : DEFAULT_STOCK,
+            })),
+          ),
+        ),
+      )
+      .execute()
   })
 }
 
-/** Columns added after the first release. Existing databases gain them in place. */
-const ORDER_COLUMNS = {
-  snap_token: 'TEXT',
-  payment_url: 'TEXT',
-  paid_at: 'TEXT',
-  expires_at: 'TEXT',
-  user_id: 'TEXT',
-  district: 'TEXT',
-  area_id: 'TEXT',
-  /** Virtual account number, QR code, or Snap token, as JSON. */
-  payment_details: 'TEXT',
-  village: 'TEXT',
-  /** Kepmendagri code of the village, the source of every region name. */
-  region_code: 'TEXT',
-}
+const REGIONS_FILE = new URL('../../resources/regions.tsv.gz', import.meta.url)
+const REGION_BATCH = 10_000
 
-const ADDRESS_COLUMNS = {
-  village: 'TEXT',
-  region_code: 'TEXT',
-}
+/** Loads the region list once, about 92 thousand rows in batches of ten thousand. */
+async function seedRegions(db: Database) {
+  if (await db.selectFrom('regions').select('code').limit(1).executeTakeFirst()) return
+  const lines = gunzipSync(readFileSync(REGIONS_FILE)).toString('utf8').split('\n').filter(Boolean)
 
-function addColumns(db: Database, table: string, columns: Record<string, string>) {
-  const existing = new Set(
-    (db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[]).map((column) => column.name),
-  )
-  for (const [name, type] of Object.entries(columns)) {
-    if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`)
-  }
-}
-
-function migrate(db: Database) {
-  addColumns(db, 'orders', ORDER_COLUMNS)
-  addColumns(db, 'addresses', ADDRESS_COLUMNS)
-  db.exec(
-    "CREATE INDEX IF NOT EXISTS orders_awaiting ON orders (status, expires_at) WHERE status = 'awaiting_payment'",
-  )
-  db.exec('CREATE INDEX IF NOT EXISTS orders_user ON orders (user_id)')
-}
-
-/** Runs the callback in one transaction, and undoes everything if it throws. */
-export function transaction<T>(db: Database, work: () => T): T {
-  db.exec('BEGIN IMMEDIATE')
-  try {
-    const result = work()
-    db.exec('COMMIT')
-    return result
-  } catch (error) {
-    db.exec('ROLLBACK')
-    throw error
-  }
-}
-
-function seed(db: Database) {
-  const existing = db.prepare('SELECT COUNT(*) AS count FROM categories').get() as { count: number }
-  if (existing.count > 0) return
-
-  const insertCategory = db.prepare(
-    'INSERT INTO categories (slug, name, description, intro, art, art_color, position) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  )
-  const insertProduct = db.prepare(`
-    INSERT INTO products (id, slug, name, category, art, rail_kind, price, compare_at_price,
-      description, details, material, colors, sizes, is_new, featured, image, position)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-  const insertVariant = db.prepare(
-    'INSERT INTO variants (product_id, color, size, stock) VALUES (?, ?, ?, ?)',
-  )
-
-  transaction(db, () => {
-    categories.forEach((category, position) => {
-      insertCategory.run(
-        category.slug,
-        category.name,
-        category.description,
-        category.intro,
-        category.art,
-        category.artColor,
-        position,
-      )
-    })
-
-    products.forEach((product, position) => {
-      insertProduct.run(
-        product.id,
-        product.slug,
-        product.name,
-        product.category,
-        product.art,
-        product.railKind ?? null,
-        product.price,
-        product.compareAtPrice ?? null,
-        product.description,
-        JSON.stringify(product.details),
-        product.material,
-        JSON.stringify(product.colors),
-        JSON.stringify(product.sizes),
-        product.isNew ? 1 : 0,
-        product.featured ? 1 : 0,
-        product.image ?? null,
-        position,
-      )
-
-      for (const color of product.colors) {
-        for (const size of product.sizes) {
-          const soldOut = product.soldOut?.includes(`${color.name}|${size}`)
-          insertVariant.run(product.id, color.name, size, soldOut ? 0 : DEFAULT_STOCK)
-        }
+  await db.transaction().execute(async (trx) => {
+    for (let start = 0; start < lines.length; start += REGION_BATCH) {
+      const codes: string[] = []
+      const names: string[] = []
+      const levels: number[] = []
+      const parents: (string | null)[] = []
+      const postals: (string | null)[] = []
+      for (const line of lines.slice(start, start + REGION_BATCH)) {
+        const [code, name, postal] = line.split('\t')
+        const parts = code.split('.')
+        codes.push(code)
+        names.push(name)
+        levels.push(parts.length)
+        parents.push(parts.length > 1 ? parts.slice(0, -1).join('.') : null)
+        postals.push(postal || null)
       }
-    })
+      await sql`INSERT INTO regions (code, name, level, parent, postal_code)
+        SELECT * FROM unnest(${codes}::text[], ${names}::text[], ${levels}::smallint[], ${parents}::text[], ${postals}::text[])`.execute(
+        trx,
+      )
+    }
   })
 }

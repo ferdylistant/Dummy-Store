@@ -5,6 +5,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { createApp } from './app.js'
 import type { Auth } from './auth.js'
 import { testAuth } from './testing/auth.js'
+import { sql } from 'kysely'
 import { openDatabase, type Database } from './db/index.js'
 import { createMidtransGateway, type PaymentGateway } from './payments/midtrans.js'
 
@@ -44,14 +45,20 @@ describe('API', () => {
   let base: string
   let auth: Auth
 
-  const stock = (item: typeof hoodie) =>
+  const stock = async (item: typeof hoodie) =>
     (
-      db
-        .prepare('SELECT stock FROM variants WHERE product_id = ? AND color = ? AND size = ?')
-        .get(item.productId, item.color, item.size) as { stock: number }
+      await db
+        .selectFrom('variants')
+        .select('stock')
+        .where('product_id', '=', item.productId)
+        .where('color', '=', item.color)
+        .where('size', '=', item.size)
+        .executeTakeFirstOrThrow()
     ).stock
-  const orderCount = () =>
-    (db.prepare('SELECT COUNT(*) AS count FROM orders').get() as { count: number }).count
+  const resetStock = () =>
+    sql`UPDATE variants SET stock = 25 WHERE NOT (color = 'Navy' AND product_id = 'p007' AND size IN ('S', 'M'))`.execute(db)
+  const orderCount = async () =>
+    Number((await db.selectFrom('orders').select((eb) => eb.fn.countAll().as('count')).executeTakeFirstOrThrow()).count)
 
   const get = async (path: string) => {
     const response = await fetch(base + path)
@@ -67,7 +74,7 @@ describe('API', () => {
   }
 
   before(async () => {
-    db = openDatabase(':memory:')
+    db = await openDatabase(':memory:')
     ;({ auth } = await testAuth(db))
     await new Promise<void>((resolve) => {
       server = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1000, payments: testGateway(), auth }).listen(0, () =>
@@ -77,13 +84,13 @@ describe('API', () => {
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   })
 
-  after(() => {
+  after(async () => {
     server.close()
-    db.close()
+    await db.destroy()
   })
 
-  beforeEach(() => {
-    db.exec("UPDATE variants SET stock = 25 WHERE NOT (color = 'Navy' AND product_id = 'p007' AND size IN ('S', 'M'))")
+  beforeEach(async () => {
+    await resetStock()
   })
 
   describe('catalog', () => {
@@ -178,7 +185,7 @@ describe('API', () => {
 
     it('reduces stock', async () => {
       await order({ customer, items: [{ ...hoodie, quantity: 3 }] })
-      assert.equal(stock(hoodie), 22)
+      assert.equal(await stock(hoodie), 22)
     })
 
     it('refuses a sold out variant', async () => {
@@ -191,7 +198,7 @@ describe('API', () => {
     })
 
     it('counts duplicate lines against stock together', async () => {
-      db.exec("UPDATE variants SET stock = 5 WHERE product_id = 'p007' AND color = 'Hitam' AND size = 'L'")
+      await sql`UPDATE variants SET stock = 5 WHERE product_id = 'p007' AND color = 'Hitam' AND size = 'L'`.execute(db)
       const { status } = await order({
         customer,
         items: [
@@ -200,18 +207,18 @@ describe('API', () => {
         ],
       })
       assert.equal(status, 409)
-      assert.equal(stock(hoodie), 5)
+      assert.equal(await stock(hoodie), 5)
     })
 
     it('rolls back everything when one line fails', async () => {
-      const before = orderCount()
+      const before = await orderCount()
       const { status } = await order({
         customer,
         items: [hoodie, { ...hoodie, color: 'Navy', size: 'S' }],
       })
       assert.equal(status, 409)
-      assert.equal(stock(hoodie), 25)
-      assert.equal(orderCount(), before)
+      assert.equal(await stock(hoodie), 25)
+      assert.equal(await orderCount(), before)
     })
 
     it('refuses an unknown variant', async () => {
@@ -245,12 +252,12 @@ describe('API', () => {
 
     it('creates one order for a repeated request', async () => {
       const headers = { 'Idempotency-Key': 'percobaan-pertama' }
-      const before = orderCount()
+      const before = await orderCount()
       const first = await order({ customer, items: [hoodie] }, headers)
       const second = await order({ customer, items: [hoodie] }, headers)
       assert.equal(first.body.orderNumber, second.body.orderNumber)
-      assert.equal(orderCount(), before + 1)
-      assert.equal(stock(hoodie), 24)
+      assert.equal(await orderCount(), before + 1)
+      assert.equal(await stock(hoodie), 24)
     })
 
     it('answers malformed JSON with a client error', async () => {

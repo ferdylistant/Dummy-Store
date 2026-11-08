@@ -8,7 +8,11 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
   .filter(Boolean)
 
 const port = Number(process.env.PORT ?? 4000)
-const databasePath = process.env.DATABASE_PATH ?? 'data/store.db'
+/**
+ * A postgres:// URL (Neon in production), or a folder for PGlite in
+ * development. Nothing needs installing for the folder.
+ */
+const databaseUrl = process.env.DATABASE_URL?.trim() || 'data/pglite'
 
 /**
  * Sessions are signed with this secret. Production must set it. In
@@ -21,7 +25,7 @@ function authSecret() {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('BETTER_AUTH_SECRET wajib diisi di production.')
   }
-  const file = join(dirname(databasePath === ':memory:' ? 'data/x' : databasePath), '.auth-secret')
+  const file = join('data', '.auth-secret')
   if (existsSync(file)) return readFileSync(file, 'utf8').trim()
   mkdirSync(dirname(file), { recursive: true })
   const secret = randomBytes(32).toString('hex')
@@ -31,7 +35,7 @@ function authSecret() {
 
 export const config = {
   port,
-  databasePath,
+  databaseUrl,
   corsOrigins,
   /** Proxy hops in front of the API, such as 1 behind a load balancer. */
   trustProxy: Number(process.env.TRUST_PROXY ?? 0) || 0,

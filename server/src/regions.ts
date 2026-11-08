@@ -70,12 +70,9 @@ export interface RegionOption {
 }
 
 /** Provinces when parent is empty, otherwise the regions directly under it. */
-export function regionChildren(db: Database, parent: string | null): RegionOption[] {
-  const rows = (
-    parent
-      ? db.prepare('SELECT code, name, postal_code FROM regions WHERE parent = ? ORDER BY name').all(parent)
-      : db.prepare('SELECT code, name, postal_code FROM regions WHERE level = 1 ORDER BY name').all()
-  ) as unknown as { code: string; name: string; postal_code: string | null }[]
+export async function regionChildren(db: Database, parent: string | null): Promise<RegionOption[]> {
+  const query = db.selectFrom('regions').select(['code', 'name', 'postal_code']).orderBy('name')
+  const rows = await (parent ? query.where('parent', '=', parent) : query.where('level', '=', 1)).execute()
   return rows.map((row) => (row.postal_code ? { code: row.code, name: row.name, postalCode: row.postal_code } : { code: row.code, name: row.name }))
 }
 
@@ -92,13 +89,11 @@ export interface ResolvedVillage {
  * Every name of an address comes from the village code, never from what the
  * browser sent, so an address always matches real regions.
  */
-export function resolveVillage(db: Database, code: string): ResolvedVillage | null {
+export async function resolveVillage(db: Database, code: string): Promise<ResolvedVillage | null> {
   const parts = code.split('.')
   if (parts.length !== 4) return null
   const chain = [1, 2, 3, 4].map((length) => parts.slice(0, length).join('.'))
-  const rows = db
-    .prepare(`SELECT code, name, postal_code FROM regions WHERE code IN (?, ?, ?, ?)`)
-    .all(...chain) as unknown as { code: string; name: string; postal_code: string | null }[]
+  const rows = await db.selectFrom('regions').select(['code', 'name', 'postal_code']).where('code', 'in', chain).execute()
   const byCode = new Map(rows.map((row) => [row.code, row]))
   const [province, city, district, village] = chain.map((item) => byCode.get(item))
   if (!province || !city || !district || !village?.postal_code) return null
