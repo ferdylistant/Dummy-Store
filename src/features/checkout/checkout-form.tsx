@@ -9,8 +9,8 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { useForm, useWatch, type FieldErrors, type UseFormSetValue } from 'react-hook-form'
 import { Button, ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { TextAreaField, TextField } from '@/components/ui/text-field'
-import { formatAddress } from '@/features/account/address-book'
-import { RegionField } from '@/features/account/region-field'
+import { formatAddress, regionOf } from '@/features/account/address-book'
+import { EMPTY_REGION, RegionField, type RegionValue } from '@/features/account/region-field'
 import { CartLoadError } from '@/features/cart/cart-load-error'
 import { OrderSummary } from '@/features/cart/order-summary'
 import { useCart } from '@/features/cart/store'
@@ -31,7 +31,7 @@ import { loadSnap, openSnap } from './snap'
 const STEPS = [
   {
     title: 'Data Diri',
-    fields: ['email', 'phone', 'fullName', 'address', 'district', 'city', 'province', 'postalCode', 'notes'],
+    fields: ['email', 'phone', 'fullName', 'address', 'regionCode', 'notes'],
   },
   { title: 'Pengiriman', fields: ['shippingMethod'] },
   { title: 'Pembayaran', fields: ['paymentMethod'] },
@@ -42,17 +42,26 @@ const LAST_STEP = STEPS.length - 1
 
 const NEW_ADDRESS = 'baru'
 
+function setRegion(setValue: UseFormSetValue<CheckoutValues>, region: RegionValue, validate: boolean) {
+  const options = { shouldValidate: validate, shouldDirty: true }
+  setValue('regionCode', region.regionCode, options)
+  setValue('province', region.province, options)
+  setValue('city', region.city, options)
+  setValue('district', region.district, options)
+  setValue('village', region.village, options)
+  setValue('postalCode', region.postalCode, options)
+}
+
 function fillAddress(setValue: UseFormSetValue<CheckoutValues>, address: Address | null) {
   const options = { shouldValidate: false, shouldDirty: true }
   setValue('fullName', address?.recipient ?? '', options)
   setValue('phone', address?.phone ?? '', options)
   setValue('address', address?.address ?? '', options)
-  setValue('district', address?.district ?? '', options)
-  setValue('city', address?.city ?? '', options)
-  setValue('province', address?.province ?? '', options)
-  setValue('postalCode', address?.postalCode ?? '', options)
-  setValue('areaId', address?.areaId ?? undefined, options)
+  setRegion(setValue, address ? regionOf(address) : EMPTY_REGION, false)
 }
+
+/** Saved addresses from before villages were required cannot be shipped to. */
+const usable = (address: Address) => Boolean(address.regionCode)
 
 function OptionCard({
   label,
@@ -156,13 +165,7 @@ export function CheckoutForm() {
   } = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     mode: 'onTouched',
-    defaultValues: {
-      shippingMethod: 'reguler',
-      district: '',
-      city: '',
-      province: '',
-      postalCode: '',
-    },
+    defaultValues: { shippingMethod: 'reguler', ...EMPTY_REGION },
   })
 
   const userId = session?.user.id
@@ -177,8 +180,8 @@ export function CheckoutForm() {
       .then((saved) => {
         if (!current || saved.length === 0) return
         setAddresses(saved)
-        const preferred = saved.find((item) => item.isDefault) ?? saved[0]
-        if (!getValues('address')) {
+        const preferred = saved.find((item) => item.isDefault && usable(item)) ?? saved.find(usable)
+        if (preferred && !getValues('address')) {
           fillAddress(setValue, preferred)
           setAddressChoice(String(preferred.id))
         }
@@ -349,25 +352,39 @@ export function CheckoutForm() {
                 {addresses.length > 0 && (
                   <fieldset className="grid gap-3 md:col-span-2">
                     <legend className="mb-2 text-sm font-medium">Kirim ke</legend>
-                    {addresses.map((address) => (
-                      <OptionCard
-                        key={address.id}
-                        label={`${address.label} · ${address.recipient}`}
-                        hint={`${address.phone} · ${formatAddress(address)}`}
-                        aside={address.isDefault ? 'Utama' : undefined}
-                        checked={addressChoice === String(address.id)}
-                        input={
-                          <input
-                            type="radio"
-                            name="saved-address"
-                            value={address.id}
-                            checked={addressChoice === String(address.id)}
-                            onChange={() => chooseAddress(String(address.id))}
-                            className="size-5 accent-primary"
-                          />
-                        }
-                      />
-                    ))}
+                    {addresses.map((address) =>
+                      usable(address) ? (
+                        <OptionCard
+                          key={address.id}
+                          label={`${address.label} · ${address.recipient}`}
+                          hint={`${address.phone} · ${formatAddress(address)}`}
+                          aside={address.isDefault ? 'Utama' : undefined}
+                          checked={addressChoice === String(address.id)}
+                          input={
+                            <input
+                              type="radio"
+                              name="saved-address"
+                              value={address.id}
+                              checked={addressChoice === String(address.id)}
+                              onChange={() => chooseAddress(String(address.id))}
+                              className="size-5 accent-primary"
+                            />
+                          }
+                        />
+                      ) : (
+                        <div key={address.id} className="rounded-xl border border-dashed border-input p-4 text-sm">
+                          <p className="font-medium">
+                            {address.label} · {address.recipient}
+                          </p>
+                          <p className="mt-0.5 text-muted-foreground">
+                            Belum ada desa atau kelurahan, jadi belum bisa dipakai.{' '}
+                            <Link href="/akun/alamat" className="font-medium text-foreground">
+                              <span className="link-stitch">Lengkapi di Akun</span>
+                            </Link>
+                          </p>
+                        </div>
+                      ),
+                    )}
                     <OptionCard
                       label="Alamat baru"
                       hint="Tulis alamat lain untuk pesanan ini."
@@ -429,26 +446,15 @@ export function CheckoutForm() {
                     <RegionField
                       idPrefix="checkout"
                       value={{
-                        district: values.district ?? '',
-                        city: values.city ?? '',
+                        regionCode: values.regionCode ?? '',
                         province: values.province ?? '',
+                        city: values.city ?? '',
+                        district: values.district ?? '',
+                        village: values.village ?? '',
                         postalCode: values.postalCode ?? '',
-                        areaId: values.areaId,
                       }}
-                      onChange={(region) => {
-                        const options = { shouldValidate: true, shouldDirty: true }
-                        setValue('district', region.district, options)
-                        setValue('city', region.city, options)
-                        setValue('province', region.province, options)
-                        setValue('postalCode', region.postalCode, options)
-                        setValue('areaId', region.areaId, options)
-                      }}
-                      error={
-                        errors.district?.message ??
-                        errors.city?.message ??
-                        errors.province?.message ??
-                        errors.postalCode?.message
-                      }
+                      onChange={(region) => setRegion(setValue, region, Boolean(region.regionCode))}
+                      error={errors.regionCode?.message}
                     />
                   </div>
                 )}
@@ -570,8 +576,8 @@ export function CheckoutForm() {
                       <br />
                       {values.phone}
                       <br />
-                      {values.address}, {values.district}, {values.city}, {values.province}{' '}
-                      {values.postalCode}
+                      {values.address}, {values.village}, {values.district}, {values.city},{' '}
+                      {values.province} {values.postalCode}
                     </ReviewRow>
                     <ReviewRow title="Metode pengiriman" onEdit={() => goTo(1)}>
                       {SHIPPING_OPTIONS[shippingMethod].label},{' '}

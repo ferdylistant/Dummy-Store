@@ -1,6 +1,7 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { gunzipSync } from 'node:zlib'
 import { categories, products } from './seed-data.js'
 
 export type Database = DatabaseSync
@@ -96,6 +97,18 @@ const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS addresses_user ON addresses (user_id);
 
+  -- Kepmendagri regions: province (1), city or regency (2), district (3),
+  -- village (4). Only villages carry a postal code.
+  CREATE TABLE IF NOT EXISTS regions (
+    code TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    level INTEGER NOT NULL,
+    parent TEXT,
+    postal_code TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS regions_parent ON regions (parent, name);
+
   CREATE TABLE IF NOT EXISTS user_preferences (
     user_id TEXT PRIMARY KEY,
     order_updates INTEGER NOT NULL DEFAULT 1,
@@ -110,7 +123,25 @@ export function openDatabase(path: string): Database {
   db.exec(SCHEMA)
   migrate(db)
   seed(db)
+  seedRegions(db)
   return db
+}
+
+const REGIONS_FILE = new URL('../../resources/regions.tsv.gz', import.meta.url)
+
+/** Loads the region list once. About 92 thousand rows, in one transaction. */
+function seedRegions(db: Database) {
+  if (db.prepare('SELECT 1 FROM regions LIMIT 1').get()) return
+  const rows = gunzipSync(readFileSync(REGIONS_FILE)).toString('utf8').split('\n')
+  const insert = db.prepare('INSERT INTO regions (code, name, level, parent, postal_code) VALUES (?, ?, ?, ?, ?)')
+  transaction(db, () => {
+    for (const row of rows) {
+      if (!row) continue
+      const [code, name, postal] = row.split('\t')
+      const parts = code.split('.')
+      insert.run(code, name, parts.length, parts.length > 1 ? parts.slice(0, -1).join('.') : null, postal || null)
+    }
+  })
 }
 
 /** Columns added after the first release. Existing databases gain them in place. */
@@ -124,17 +155,28 @@ const ORDER_COLUMNS = {
   area_id: 'TEXT',
   /** Virtual account number, QR code, or Snap token, as JSON. */
   payment_details: 'TEXT',
+  village: 'TEXT',
+  /** Kepmendagri code of the village, the source of every region name. */
+  region_code: 'TEXT',
+}
+
+const ADDRESS_COLUMNS = {
+  village: 'TEXT',
+  region_code: 'TEXT',
+}
+
+function addColumns(db: Database, table: string, columns: Record<string, string>) {
+  const existing = new Set(
+    (db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[]).map((column) => column.name),
+  )
+  for (const [name, type] of Object.entries(columns)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`)
+  }
 }
 
 function migrate(db: Database) {
-  const existing = new Set(
-    (db.prepare('PRAGMA table_info(orders)').all() as unknown as { name: string }[]).map(
-      (column) => column.name,
-    ),
-  )
-  for (const [name, type] of Object.entries(ORDER_COLUMNS)) {
-    if (!existing.has(name)) db.exec(`ALTER TABLE orders ADD COLUMN ${name} ${type}`)
-  }
+  addColumns(db, 'orders', ORDER_COLUMNS)
+  addColumns(db, 'addresses', ADDRESS_COLUMNS)
   db.exec(
     "CREATE INDEX IF NOT EXISTS orders_awaiting ON orders (status, expires_at) WHERE status = 'awaiting_payment'",
   )

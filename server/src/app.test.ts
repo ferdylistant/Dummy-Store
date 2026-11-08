@@ -29,10 +29,8 @@ const customer = {
   fullName: 'Budi Santoso',
   phone: '081234567890',
   address: 'Jalan Merdeka No. 10, RT 01',
-  city: 'Bandung',
-  province: 'Jawa Barat',
-  postalCode: '40115',
-  district: 'Coblong',
+  // Lebak Gede, Coblong, Kota Bandung, Jawa Barat 40132
+  regionCode: '32.73.02.1002',
   shippingMethod: 'reguler',
   paymentMethod: 'bca_va',
 }
@@ -224,14 +222,20 @@ describe('API', () => {
 
     it('validates the customer', async () => {
       const { status, body } = await order({
-        customer: { ...customer, email: 'bukan-email', postalCode: '1' },
+        customer: { ...customer, email: 'bukan-email', regionCode: '32.73' },
         items: [hoodie],
       })
       assert.equal(status, 422)
       assert.deepEqual(
         body.error.details.map((detail: { field: string }) => detail.field).sort(),
-        ['customer.email', 'customer.postalCode'],
+        ['customer.email', 'customer.regionCode'],
       )
+    })
+
+    it('refuses a village code that does not exist', async () => {
+      const { status, body } = await order({ customer: { ...customer, regionCode: '32.73.02.9999' }, items: [hoodie] })
+      assert.equal(status, 422)
+      assert.equal(body.error.code, 'unknown_region')
     })
 
     it('limits quantity and refuses an empty cart', async () => {

@@ -9,11 +9,14 @@ export const checkoutSchema = z.object({
     .trim()
     .regex(/^(\+62|62|0)8[0-9]{7,12}$/, 'Tulis nomor ponsel yang valid, misalnya 081234567890.'),
   address: z.string().trim().min(10, 'Tulis nama jalan, nomor rumah, RT/RW.'),
-  district: z.string().trim().min(3, 'Pilih kecamatan tujuan.'),
-  city: z.string().trim().min(3, 'Tulis nama kota atau kabupaten tujuan.'),
-  province: z.string().trim().min(3, 'Tulis nama provinsi tujuan.'),
-  postalCode: z.string().trim().regex(/^[0-9]{5}$/, 'Kode pos terdiri dari 5 angka.'),
-  areaId: z.string().optional(),
+  /** Village code. The server reads every region name and the postal code from it. */
+  regionCode: z.string().regex(/^\d{2}\.\d{2}\.\d{2}\.\d{4}$/, 'Pilih provinsi sampai desa atau kelurahan.'),
+  // Shown in the review. The server ignores them and uses regionCode.
+  province: z.string(),
+  city: z.string(),
+  district: z.string(),
+  village: z.string(),
+  postalCode: z.string(),
   notes: z.string().trim().max(200, 'Catatan maksimal 200 karakter.').optional(),
   shippingMethod: z.enum(['reguler', 'ekspres']),
   paymentMethod: z.enum(PAYMENT_VALUES, { error: 'Pilih metode pembayaran.' }),

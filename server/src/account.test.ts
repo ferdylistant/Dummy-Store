@@ -19,11 +19,8 @@ const address = {
   recipient: 'Budi Santoso',
   phone: '081234567890',
   address: 'Jalan Merdeka No. 10, RT 01',
-  district: 'Coblong',
-  city: 'Kota Bandung',
-  province: 'Jawa Barat',
-  postalCode: '40132',
-  areaId: 'IDNP9IDNC22IDND1234',
+  // Lebak Gede, Coblong, Kota Bandung, Jawa Barat 40132
+  regionCode: '32.73.02.1002',
 }
 
 const regions: RegionProvider = {
@@ -193,8 +190,11 @@ describe('accounts', () => {
     assert.equal(remaining.length, 1)
     assert.equal(remaining[0].isDefault, true, 'deleting the default promotes another')
 
-    const invalid = await user.call('/api/me/addresses', { body: { ...address, postalCode: '12' } })
+    const invalid = await user.call('/api/me/addresses', { body: { ...address, regionCode: '32.73' } })
     assert.equal(invalid.status, 422)
+    const unknown = await user.call('/api/me/addresses', { body: { ...address, regionCode: '32.73.02.9999' } })
+    assert.equal(unknown.status, 422)
+    assert.equal(unknown.body.error.code, 'unknown_region')
   })
 
   it("never shows or changes another user's address", async () => {
@@ -227,11 +227,8 @@ describe('accounts', () => {
           fullName: 'Budi Santoso',
           phone: '081234567890',
           address: 'Jalan Merdeka No. 10, RT 01',
-          district: 'Coblong',
-          city: 'Kota Bandung',
-          province: 'Jawa Barat',
-          postalCode: '40132',
-          areaId: 'IDNP9IDNC22IDND1234',
+          // Dago, Coblong, Kota Bandung, Jawa Barat 40135
+          regionCode: '32.73.02.1004',
           shippingMethod: 'reguler',
           paymentMethod: 'gopay',
         },
@@ -245,7 +242,9 @@ describe('accounts', () => {
     assert.equal(history[0].items[0].name, 'Mug Keramik')
     const saved = (await user.call('/api/me/addresses')).body.items
     assert.equal(saved[0].district, 'Coblong')
-    assert.equal(saved[0].areaId, 'IDNP9IDNC22IDND1234')
+    assert.equal(saved[0].village, 'Dago')
+    assert.equal(saved[0].postalCode, '40135')
+    assert.equal(saved[0].regionCode, '32.73.02.1004')
 
     const guestOrders = await client().call('/api/me/orders')
     assert.equal(guestOrders.status, 401)
@@ -271,6 +270,33 @@ describe('accounts', () => {
       body: { email: 'lupa@example.com', password: 'password-baru-456' },
     })
     assert.equal(signIn.status, 200)
+  })
+
+  it('lists regions level by level from its own data', async () => {
+    const provinces = (await client().call('/api/regions/children')).body.items
+    assert.equal(provinces.length, 38)
+    assert.ok(provinces.some((item: Json) => item.code === '32' && item.name === 'Jawa Barat'))
+    const cities = (await client().call('/api/regions/children?parent=32')).body.items
+    assert.ok(cities.some((item: Json) => item.name === 'Kota Bandung'))
+    const villages = await client().call('/api/regions/children?parent=32.73.02')
+    assert.equal(villages.headers.get('cache-control'), 'public, max-age=86400')
+    assert.deepEqual(
+      villages.body.items.find((item: Json) => item.name === 'Dago'),
+      { code: '32.73.02.1004', name: 'Dago', postalCode: '40135' },
+    )
+    assert.equal((await client().call('/api/regions/children?parent=x')).status, 422)
+  })
+
+  it('takes region names from the village code, not from the browser', async () => {
+    const user = await verifiedUser('wilayah@example.com')
+    const saved = await user.call('/api/me/addresses', {
+      body: { ...address, province: 'Provinsi Palsu', city: 'Kota Palsu', postalCode: '99999' },
+    })
+    assert.equal(saved.status, 201)
+    assert.equal(saved.body.province, 'Jawa Barat')
+    assert.equal(saved.body.city, 'Kota Bandung')
+    assert.equal(saved.body.village, 'Lebak Gede')
+    assert.equal(saved.body.postalCode, '40132')
   })
 
   it('searches regions and reports what is configured', async () => {

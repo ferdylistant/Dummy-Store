@@ -1,3 +1,6 @@
+import { z } from 'zod'
+import type { Database } from './db/index.js'
+
 export interface Region {
   /** Biteship area id, used later for shipping rates. */
   id: string
@@ -59,3 +62,56 @@ export function createBiteshipRegions(apiKey: string): RegionProvider {
     },
   }
 }
+
+export interface RegionOption {
+  code: string
+  name: string
+  postalCode?: string
+}
+
+/** Provinces when parent is empty, otherwise the regions directly under it. */
+export function regionChildren(db: Database, parent: string | null): RegionOption[] {
+  const rows = (
+    parent
+      ? db.prepare('SELECT code, name, postal_code FROM regions WHERE parent = ? ORDER BY name').all(parent)
+      : db.prepare('SELECT code, name, postal_code FROM regions WHERE level = 1 ORDER BY name').all()
+  ) as unknown as { code: string; name: string; postal_code: string | null }[]
+  return rows.map((row) => (row.postal_code ? { code: row.code, name: row.name, postalCode: row.postal_code } : { code: row.code, name: row.name }))
+}
+
+export interface ResolvedVillage {
+  regionCode: string
+  province: string
+  city: string
+  district: string
+  village: string
+  postalCode: string
+}
+
+/**
+ * Every name of an address comes from the village code, never from what the
+ * browser sent, so an address always matches real regions.
+ */
+export function resolveVillage(db: Database, code: string): ResolvedVillage | null {
+  const parts = code.split('.')
+  if (parts.length !== 4) return null
+  const chain = [1, 2, 3, 4].map((length) => parts.slice(0, length).join('.'))
+  const rows = db
+    .prepare(`SELECT code, name, postal_code FROM regions WHERE code IN (?, ?, ?, ?)`)
+    .all(...chain) as unknown as { code: string; name: string; postal_code: string | null }[]
+  const byCode = new Map(rows.map((row) => [row.code, row]))
+  const [province, city, district, village] = chain.map((item) => byCode.get(item))
+  if (!province || !city || !district || !village?.postal_code) return null
+  return {
+    regionCode: code,
+    province: province.name,
+    city: city.name,
+    district: district.name,
+    village: village.name,
+    postalCode: village.postal_code,
+  }
+}
+
+export const regionCodeSchema = z
+  .string()
+  .regex(/^\d{2}\.\d{2}\.\d{2}\.\d{4}$/, 'Pilih desa atau kelurahan dari daftar.')

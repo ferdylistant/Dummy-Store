@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { sessionUser, type Auth } from './auth.js'
 import { transaction, type Database } from './db/index.js'
 import { HttpError } from './errors.js'
+import { regionCodeSchema, resolveVillage, type ResolvedVillage } from './regions.js'
 
 export const addressSchema = z.object({
   label: z.string().trim().min(1).max(30),
@@ -12,14 +13,8 @@ export const addressSchema = z.object({
     .trim()
     .regex(/^(\+62|62|0)8[0-9]{7,12}$/, 'Nomor ponsel tidak valid.'),
   address: z.string().trim().min(10, 'Tulis alamat lengkap.').max(500),
-  district: z.string().trim().min(3).max(120),
-  city: z.string().trim().min(3).max(120),
-  province: z.string().trim().min(3).max(120),
-  postalCode: z
-    .string()
-    .trim()
-    .regex(/^[0-9]{5}$/, 'Kode pos harus 5 angka.'),
-  areaId: z.string().trim().max(80).optional(),
+  /** Village code. Province, city, district, village, and postal code come from it. */
+  regionCode: regionCodeSchema,
   isDefault: z.boolean().optional(),
 })
 
@@ -40,7 +35,8 @@ interface AddressRow {
   city: string
   province: string
   postal_code: string
-  area_id: string | null
+  village: string | null
+  region_code: string | null
   is_default: number
 }
 
@@ -56,8 +52,10 @@ function toAddress(row: AddressRow) {
     district: row.district,
     city: row.city,
     province: row.province,
+    village: row.village,
     postalCode: row.postal_code,
-    areaId: row.area_id,
+    /** Null for addresses saved before villages were required. They must be completed. */
+    regionCode: row.region_code,
     isDefault: row.is_default === 1,
   }
 }
@@ -70,7 +68,15 @@ export function listAddresses(db: Database, userId: string) {
 }
 
 /** The first address becomes the default. A new default replaces the old one. */
+/** Region names for a village code, or a clear error when it is not a real village. */
+export function requireVillage(db: Database, code: string): ResolvedVillage {
+  const region = resolveVillage(db, code)
+  if (!region) throw new HttpError(422, 'unknown_region', 'Desa atau kelurahan tidak ditemukan. Pilih lagi dari daftar.')
+  return region
+}
+
 export function saveAddress(db: Database, userId: string, input: AddressInput, id?: number) {
+  const region = requireVillage(db, input.regionCode)
   return transaction(db, () => {
     const count = (
       db.prepare('SELECT COUNT(*) AS n FROM addresses WHERE user_id = ?').get(userId) as { n: number }
@@ -86,18 +92,20 @@ export function saveAddress(db: Database, userId: string, input: AddressInput, i
       input.recipient,
       input.phone,
       input.address,
-      input.district,
-      input.city,
-      input.province,
-      input.postalCode,
-      input.areaId ?? null,
+      region.district,
+      region.city,
+      region.province,
+      region.postalCode,
+      region.village,
+      region.regionCode,
     ] as const
 
     if (id) {
       const updated = db
         .prepare(
           `UPDATE addresses SET label = ?, recipient = ?, phone = ?, address = ?, district = ?, city = ?,
-            province = ?, postal_code = ?, area_id = ?, is_default = CASE WHEN ? THEN 1 ELSE is_default END
+            province = ?, postal_code = ?, village = ?, region_code = ?, area_id = NULL,
+            is_default = CASE WHEN ? THEN 1 ELSE is_default END
            WHERE id = ? AND user_id = ?`,
         )
         .run(...values, makeDefault ? 1 : 0, id, userId)
@@ -108,7 +116,7 @@ export function saveAddress(db: Database, userId: string, input: AddressInput, i
     const created = db
       .prepare(
         `INSERT INTO addresses (user_id, label, recipient, phone, address, district, city, province,
-          postal_code, area_id, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          postal_code, village, region_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(userId, ...values, makeDefault ? 1 : 0)
     return Number(created.lastInsertRowid)

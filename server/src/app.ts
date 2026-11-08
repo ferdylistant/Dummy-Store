@@ -4,7 +4,7 @@ import express from 'express'
 import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import { z } from 'zod'
-import { accountRouter, saveAddress } from './account.js'
+import { accountRouter, requireVillage, saveAddress } from './account.js'
 import { sessionUser, type Auth } from './auth.js'
 import type { Database } from './db/index.js'
 import { errorHandler, HttpError, notFoundHandler } from './errors.js'
@@ -16,7 +16,7 @@ import {
   orderStatus,
 } from './orders.js'
 import type { PaymentGateway } from './payments/midtrans.js'
-import type { RegionProvider } from './regions.js'
+import { regionChildren, type RegionProvider } from './regions.js'
 import {
   findProductBySlug,
   listCategories,
@@ -128,6 +128,16 @@ export function createApp(db: Database, options: AppOptions) {
     res.json({ items: await regions.search(q) })
   })
 
+  // The Kepmendagri list from our own database: provinces, then each level down.
+  // It changes only with a new data release, so browsers and CDNs may keep it a day.
+  app.get('/api/regions/children', limiter(120), (req, res) => {
+    const { parent } = z
+      .object({ parent: z.string().regex(/^\d{2}(\.\d{2}){0,2}$/).optional() })
+      .parse(req.query)
+    res.set('Cache-Control', 'public, max-age=86400')
+    res.json({ items: regionChildren(db, parent ?? null) })
+  })
+
   app.use('/api/me', accountRouter(db, options.auth))
 
   app.get('/health', (_req, res) => {
@@ -180,6 +190,7 @@ export function createApp(db: Database, options: AppOptions) {
       siteUrl: options.siteUrl ?? options.corsOrigins[0] ?? '',
       idempotencyKey,
       userId: user?.id,
+      region: requireVillage(db, input.customer.regionCode),
     })
     if (user && input.saveAddress) {
       const { customer } = input
@@ -188,11 +199,7 @@ export function createApp(db: Database, options: AppOptions) {
         recipient: customer.fullName,
         phone: customer.phone,
         address: customer.address,
-        district: customer.district,
-        city: customer.city,
-        province: customer.province,
-        postalCode: customer.postalCode,
-        areaId: customer.areaId,
+        regionCode: customer.regionCode,
       })
     }
     res.status(201).json(result)

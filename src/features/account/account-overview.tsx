@@ -9,6 +9,7 @@ import { authClient } from '@/lib/auth-client'
 import { formatRupiah } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { getAddresses, getOrderHistory, type Address, type OrderHistoryItem } from '@/services/account'
+import { formatAddress } from './address-book'
 import { OrderThumb, StatusChip, orderDate, useOrderProducts } from './order-parts'
 
 const monthYear = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' })
@@ -262,7 +263,7 @@ export function AccountOverview() {
                 {primary.recipient} · {primary.phone}
               </p>
               <p className="mt-1 leading-relaxed text-muted-foreground">
-                {primary.address}, {primary.district}, {primary.city}, {primary.province} {primary.postalCode}
+                {formatAddress(primary)}
               </p>
             </div>
           ) : (

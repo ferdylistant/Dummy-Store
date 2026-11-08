@@ -61,7 +61,8 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 | GET | `/api/orders/:nomor` | Status pesanan, tanpa data pembeli |
 | POST | `/api/payments/midtrans/notification` | Notifikasi pembayaran dari Midtrans |
 | GET | `/api/config` | Fitur yang aktif: pembayaran, pencarian wilayah, login Google |
-| GET | `/api/regions?q=` | Cari kecamatan atau kode pos lewat Biteship |
+| GET | `/api/regions/children?parent=` | Daftar provinsi, lalu kota/kabupaten, kecamatan, dan desa/kelurahan beserta kode posnya |
+| GET | `/api/regions?q=` | Cari area Biteship (cadangan untuk ongkir nanti) |
 | * | `/api/auth/*` | Daftar, masuk, konfirmasi email, lupa password (Better Auth) |
 | GET, POST, PUT, DELETE | `/api/me/addresses` | Alamat tersimpan milik pengguna yang masuk |
 | GET, PUT | `/api/me/preferences` | Pengaturan notifikasi |
@@ -87,7 +88,8 @@ Semua kunci di bawah ini diisi di `server/.env`. Tanpa kunci, fitur tetap jalan 
 
 - **Email (Resend)**: isi `RESEND_API_KEY` dan `MAIL_FROM` dengan domain yang sudah diverifikasi di Resend. Tanpa kunci, email konfirmasi dan atur ulang password dicetak di log API, jadi tautannya bisa disalin dari sana.
 - **Login Google**: buat OAuth Client ID di Google Cloud Console, isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET`, dan daftarkan redirect URI `<API_URL>/api/auth/callback/google`. Tombol Google hanya muncul jika kunci ini diisi.
-- **Wilayah (Biteship)**: isi `BITESHIP_API_KEY`. Kecamatan, kota, provinsi, dan kode pos lalu dipilih dari hasil pencarian. Tanpa kunci, kolom wilayah diisi manual.
+- **Wilayah**: provinsi sampai desa/kelurahan dan kode posnya berasal dari data Kepmendagri 2025 di `server/resources/regions.tsv.gz` (lisensi MIT, lihat `REGIONS-LICENSE.md`). Data dimuat otomatis ke database dan tidak butuh kunci apa pun. Untuk memperbarui data, jalankan `npm run regions:build -w server`. Alamat dan pesanan hanya menyimpan kode desa, lalu server mengisi nama wilayah dan kode pos dari data itu.
+- **Biteship**: `BITESHIP_API_KEY` disiapkan untuk menghitung ongkir dan melacak pengiriman.
 - **BETTER_AUTH_SECRET**: wajib di production, minimal 32 karakter acak. Saat pengembangan, rahasia dibuat otomatis di `server/data/.auth-secret`.
 
 Aturan akses dijaga di `src/proxy.ts` (dari cookie sesi) dan diperiksa lagi di setiap halaman:

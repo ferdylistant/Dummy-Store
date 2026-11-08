@@ -12,7 +12,8 @@
     "start": "node --env-file-if-exists=.env dist/index.js",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "db:reset": "tsx --env-file-if-exists=.env src/db/reset.ts"
+    "db:reset": "tsx --env-file-if-exists=.env src/db/reset.ts",
+    "regions:build": "tsx scripts/build-regions.ts"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

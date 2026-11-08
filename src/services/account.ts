@@ -9,22 +9,45 @@ export interface Address {
   district: string
   city: string
   province: string
+  /** Null for addresses saved before villages were required. */
+  village: string | null
   postalCode: string
-  areaId: string | null
+  /** Kepmendagri village code. Null means the address must be completed. */
+  regionCode: string | null
   isDefault: boolean
 }
 
-export type AddressInput = Omit<Address, 'id' | 'isDefault' | 'areaId'> & {
-  areaId?: string
+/** The server fills every region name and the postal code from regionCode. */
+export interface AddressInput {
+  label: string
+  recipient: string
+  phone: string
+  address: string
+  regionCode: string
   isDefault?: boolean
 }
 
-export interface Region {
-  id: string
-  province: string
-  city: string
-  district: string
-  postalCode: string
+export interface RegionOption {
+  code: string
+  name: string
+  /** Only villages carry one. */
+  postalCode?: string
+}
+
+const regionLists = new Map<string, Promise<RegionOption[]>>()
+
+/** Provinces when parent is empty, otherwise the regions under it. Cached per page. */
+export function getRegionChildren(parent = '') {
+  let list = regionLists.get(parent)
+  if (!list) {
+    list = apiGet<{ items: RegionOption[] }>(
+      `/regions/children${parent ? `?parent=${encodeURIComponent(parent)}` : ''}`,
+    ).then(({ items }) => items)
+    // A failed request is not kept, so the next try asks again.
+    list.catch(() => regionLists.delete(parent))
+    regionLists.set(parent, list)
+  }
+  return list
 }
 
 export interface Preferences {
@@ -48,11 +71,6 @@ export interface StoreConfig {
 }
 
 export const getStoreConfig = () => apiGet<StoreConfig>('/config')
-
-export async function searchRegions(query: string) {
-  const { items } = await apiGet<{ items: Region[] }>(`/regions?q=${encodeURIComponent(query)}`)
-  return items
-}
 
 export async function getAddresses() {
   const { items } = await apiGet<{ items: Address[] }>('/me/addresses')

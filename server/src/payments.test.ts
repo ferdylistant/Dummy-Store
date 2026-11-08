@@ -25,10 +25,8 @@ const customer = {
   fullName: 'Budi Santoso',
   phone: '081234567890',
   address: 'Jalan Merdeka No. 10, RT 01',
-  city: 'Bandung',
-  province: 'Jawa Barat',
-  postalCode: '40115',
-  district: 'Coblong',
+  // Lebak Gede, Coblong, Kota Bandung, Jawa Barat 40132
+  regionCode: '32.73.02.1002',
   shippingMethod: 'reguler',
   paymentMethod: 'bca_va',
 }

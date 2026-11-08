@@ -9,6 +9,7 @@ import type {
   PaymentStatus,
 } from './payments/midtrans.js'
 import { shippingCost } from './pricing.js'
+import { regionCodeSchema, type ResolvedVillage } from './regions.js'
 
 const MAX_QUANTITY = 10
 /** Transfers get a day. QR codes and e-wallets are paid on the spot, so stock is held for an hour. */
@@ -42,15 +43,9 @@ export const orderSchema = z.object({
       .trim()
       .regex(/^(\+62|62|0)8[0-9]{7,12}$/, 'Nomor ponsel tidak valid.'),
     address: z.string().trim().min(10).max(500),
-    district: z.string().trim().min(3).max(120),
-    city: z.string().trim().min(3).max(120),
-    province: z.string().trim().min(3).max(120),
-    postalCode: z
-      .string()
-      .trim()
-      .regex(/^[0-9]{5}$/, 'Kode pos harus 5 angka.'),
+    /** Village code. The order's region names and postal code come from it. */
+    regionCode: regionCodeSchema,
     notes: z.string().trim().max(200).optional(),
-    areaId: z.string().trim().max(80).optional(),
     shippingMethod: z.enum(['reguler', 'ekspres']),
     paymentMethod: z.enum(PAYMENT_METHODS),
   }),
@@ -150,7 +145,13 @@ function toResult(row: OrderRow, gateway: PaymentGateway): OrderResult {
 }
 
 /** Takes stock and saves the order in one transaction, before any payment call. */
-function reserveOrder(db: Database, input: OrderInput, idempotencyKey?: string, userId?: string) {
+function reserveOrder(
+  db: Database,
+  input: OrderInput,
+  region: ResolvedVillage,
+  idempotencyKey?: string,
+  userId?: string,
+) {
   const items = mergeItems(input.items)
   const findProduct = db.prepare('SELECT name, price FROM products WHERE id = ?')
   const findVariant = db.prepare(
@@ -195,9 +196,9 @@ function reserveOrder(db: Database, input: OrderInput, idempotencyKey?: string, 
     const order = db
       .prepare(
         `INSERT INTO orders (order_number, idempotency_key, user_id, status, email, full_name, phone,
-          address, district, city, province, postal_code, area_id, notes, shipping_method,
+          address, district, city, province, postal_code, village, region_code, notes, shipping_method,
           payment_method, subtotal, shipping_cost, total, expires_at)
-        VALUES (?, ?, ?, 'awaiting_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, 'awaiting_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         orderNumber,
@@ -207,11 +208,12 @@ function reserveOrder(db: Database, input: OrderInput, idempotencyKey?: string, 
         customer.fullName,
         customer.phone,
         customer.address,
-        customer.district,
-        customer.city,
-        customer.province,
-        customer.postalCode,
-        customer.areaId ?? null,
+        region.district,
+        region.city,
+        region.province,
+        region.postalCode,
+        region.village,
+        region.regionCode,
         customer.notes || null,
         customer.shippingMethod,
         customer.paymentMethod,
@@ -270,14 +272,15 @@ export async function createOrder(
   db: Database,
   gateway: PaymentGateway,
   input: OrderInput,
-  options: { siteUrl: string; idempotencyKey?: string; userId?: string },
+  options: { siteUrl: string; idempotencyKey?: string; userId?: string; region: ResolvedVillage },
 ): Promise<OrderResult> {
   if (options.idempotencyKey) {
     const previous = findOrder(db, 'idempotency_key', options.idempotencyKey)
     if (previous) return toResult(previous, gateway)
   }
 
-  const order = reserveOrder(db, input, options.idempotencyKey, options.userId)
+  const { region } = options
+  const order = reserveOrder(db, input, region, options.idempotencyKey, options.userId)
   const { customer } = input
 
   try {
@@ -299,9 +302,9 @@ export async function createOrder(
         name: customer.fullName,
         email: customer.email,
         phone: customer.phone,
-        address: customer.address,
-        city: customer.city,
-        postalCode: customer.postalCode,
+        address: `${customer.address}, ${region.village}, ${region.district}`,
+        city: region.city,
+        postalCode: region.postalCode,
       },
       expiryMinutes: paymentExpiryMinutes(customer.paymentMethod),
       finishUrl: `${options.siteUrl}/checkout/berhasil?pesanan=${order.orderNumber}`,

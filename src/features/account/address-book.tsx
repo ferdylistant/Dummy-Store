@@ -18,24 +18,20 @@ import {
   type AddressInput,
 } from '@/services/account'
 import { AccountSection } from './account-shell'
-import { RegionField } from './region-field'
+import { EMPTY_REGION, RegionField, type RegionValue } from './region-field'
 
-export const regionSchema = z
+const regionSchema = z
   .object({
-    district: z.string().trim(),
-    city: z.string().trim(),
-    province: z.string().trim(),
-    postalCode: z.string().trim(),
-    areaId: z.string().optional(),
+    regionCode: z.string(),
+    province: z.string(),
+    city: z.string(),
+    district: z.string(),
+    village: z.string(),
+    postalCode: z.string(),
   })
-  .refine(
-    (value) =>
-      value.district.length >= 3 &&
-      value.city.length >= 3 &&
-      value.province.length >= 3 &&
-      /^[0-9]{5}$/.test(value.postalCode),
-    { message: 'Pilih kecamatan dan kode pos dari daftar, atau lengkapi semua kolom wilayah.' },
-  )
+  .refine((value) => /^\d{2}\.\d{2}\.\d{2}\.\d{4}$/.test(value.regionCode), {
+    message: 'Pilih provinsi sampai desa atau kelurahan.',
+  })
 
 const addressFormSchema = z.object({
   label: z.string().trim().min(1, 'Beri label, misalnya Rumah.').max(30),
@@ -51,10 +47,25 @@ const addressFormSchema = z.object({
 
 type AddressForm = z.infer<typeof addressFormSchema>
 
-const EMPTY_REGION = { district: '', city: '', province: '', postalCode: '' }
+/** One line, from the street down to the postal code. */
+export function formatAddress(
+  address: Pick<Address, 'address' | 'district' | 'city' | 'province' | 'postalCode'> & { village?: string | null },
+) {
+  const village = address.village ? `${address.village}, ` : ''
+  return `${address.address}, ${village}${address.district}, ${address.city}, ${address.province} ${address.postalCode}`
+}
 
-export function formatAddress(address: Pick<Address, 'address' | 'district' | 'city' | 'province' | 'postalCode'>) {
-  return `${address.address}, ${address.district}, ${address.city}, ${address.province} ${address.postalCode}`
+/** The region of a saved address, or empty when it predates villages. */
+export function regionOf(address: Address): RegionValue {
+  if (!address.regionCode || !address.village) return EMPTY_REGION
+  return {
+    regionCode: address.regionCode,
+    province: address.province,
+    city: address.city,
+    district: address.district,
+    village: address.village,
+    postalCode: address.postalCode,
+  }
 }
 
 function AddressEditor({
@@ -76,13 +87,7 @@ function AddressEditor({
           recipient: initial.recipient,
           phone: initial.phone,
           address: initial.address,
-          region: {
-            district: initial.district,
-            city: initial.city,
-            province: initial.province,
-            postalCode: initial.postalCode,
-            areaId: initial.areaId ?? undefined,
-          },
+          region: regionOf(initial),
           isDefault: initial.isDefault,
         }
       : { label: 'Rumah', recipient: '', phone: '', address: '', region: EMPTY_REGION, isDefault: false },
@@ -95,7 +100,7 @@ function AddressEditor({
       className="grid gap-4 md:grid-cols-2"
       onSubmit={form.handleSubmit(async ({ region, ...values }) => {
         setError('')
-        const input: AddressInput = { ...values, ...region }
+        const input: AddressInput = { ...values, regionCode: region.regionCode }
         try {
           if (initial) await updateAddress(initial.id, input)
           else await createAddress(input)
@@ -202,6 +207,11 @@ export function AddressBook() {
             <li key={address.id} className="rounded-2xl border border-border p-4 md:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{address.label}</p>
+                {!address.regionCode && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-warning">
+                    Perlu dilengkapi
+                  </span>
+                )}
                 {address.isDefault && (
                   <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-semibold text-background">Utama</span>
                 )}
@@ -210,16 +220,28 @@ export function AddressBook() {
                 {address.recipient} · {address.phone}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{formatAddress(address)}</p>
+              {!address.regionCode && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Pilih desa atau kelurahan agar alamat ini bisa dipakai untuk pengiriman.
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap gap-x-4">
                 <button type="button" className="min-h-11 text-sm font-medium" onClick={() => setEditing(address)}>
-                  <span className="link-stitch">Ubah</span>
+                  <span className="link-stitch">{address.regionCode ? 'Ubah' : 'Lengkapi'}</span>
                 </button>
-                {!address.isDefault && (
+                {!address.isDefault && address.regionCode && (
                   <button
                     type="button"
                     className="min-h-11 text-sm font-medium"
                     onClick={async () => {
-                      await updateAddress(address.id, { ...address, areaId: address.areaId ?? undefined, isDefault: true })
+                      await updateAddress(address.id, {
+                        label: address.label,
+                        recipient: address.recipient,
+                        phone: address.phone,
+                        address: address.address,
+                        regionCode: address.regionCode!,
+                        isDefault: true,
+                      })
                       load()
                     }}
                   >
