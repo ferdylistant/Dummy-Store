@@ -3,7 +3,8 @@ import { InfoPage } from '@/components/layout/info-page'
 import { JsonLd } from '@/components/seo/json-ld'
 import { faqItems, pantsChart, sizeChart } from '@/content/help'
 import { formatRupiah } from '@/lib/format'
-import { FREE_SHIPPING_MIN, RETURN_DAYS, SHIPPING_OPTIONS } from '@/lib/pricing'
+import { SHIPPING_OPTIONS } from '@/lib/pricing'
+import { getStoreSettings } from '@/services/store'
 import { faqJsonLd, SHARE_IMAGE } from '@/lib/seo'
 
 const DESCRIPTION = 'Panduan ukuran, informasi pengiriman, retur, dan jawaban pertanyaan umum.'
@@ -17,10 +18,11 @@ export const metadata: Metadata = {
 
 const TABLE = 'w-full border-collapse text-left text-sm [&_td]:border-t [&_td]:border-border [&_td]:py-2 [&_td]:pr-4 [&_th]:py-2 [&_th]:pr-4 [&_th]:font-semibold'
 
-export default function HelpPage() {
+export default async function HelpPage() {
+  const store = await getStoreSettings()
   return (
     <InfoPage title="Pusat Bantuan" path="/bantuan" intro={DESCRIPTION}>
-      <JsonLd data={faqJsonLd(faqItems)} />
+      <JsonLd data={faqJsonLd(faqItems(store))} />
 
       <section id="ukuran">
         <h2>Panduan ukuran</h2>
@@ -69,16 +71,16 @@ export default function HelpPage() {
         <h2>Pengiriman</h2>
         <p>
           Pengiriman reguler membutuhkan {SHIPPING_OPTIONS.reguler.eta} dengan biaya{' '}
-          {formatRupiah(SHIPPING_OPTIONS.reguler.cost)}, dan gratis untuk belanja mulai{' '}
-          {formatRupiah(FREE_SHIPPING_MIN)}. Pengiriman ekspres membutuhkan{' '}
-          {SHIPPING_OPTIONS.ekspres.eta} dengan biaya {formatRupiah(SHIPPING_OPTIONS.ekspres.cost)}.
+          {formatRupiah(store.flatRates.reguler)}, dan gratis untuk belanja mulai{' '}
+          {formatRupiah(store.freeShippingMin)}. Pengiriman ekspres membutuhkan{' '}
+          {SHIPPING_OPTIONS.ekspres.eta} dengan biaya {formatRupiah(store.flatRates.ekspres)}.
         </p>
       </section>
 
       <section id="retur">
         <h2>Retur dan penukaran</h2>
         <p>
-          Produk bisa ditukar atau dikembalikan dalam {RETURN_DAYS} hari setelah diterima, selama
+          Produk bisa ditukar atau dikembalikan dalam {store.returnDays} hari setelah diterima, selama
           belum dipakai dan label masih terpasang.
         </p>
       </section>
@@ -86,7 +88,7 @@ export default function HelpPage() {
       <section id="faq">
         <h2>Pertanyaan umum</h2>
         <div className="mt-4 space-y-4">
-          {faqItems.map((item) => (
+          {faqItems(store).map((item) => (
             <div key={item.question}>
               <h3 className="font-medium">{item.question}</h3>
               <p className="mt-1 text-sm">{item.answer}</p>

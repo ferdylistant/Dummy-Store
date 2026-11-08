@@ -10,30 +10,26 @@ import { SectionHeading } from '@/features/home/section-heading'
 import { ProductArt } from '@/features/products/product-art'
 import { ProductCard } from '@/features/products/product-card'
 import { formatRupiah, formatRupiahShort } from '@/lib/format'
-import { FREE_SHIPPING_MIN, RETURN_DAYS } from '@/lib/pricing'
+import { mediaSrc } from '@/lib/media'
 import { SHARE_IMAGE, websiteJsonLd } from '@/lib/seo'
 import { cn } from '@/lib/utils'
-import {
-  getCategories,
-  getFeaturedProducts,
-  getNewProducts,
-  getRailProducts,
-} from '@/services/products'
+import { ProductImage } from '@/features/products/product-image'
+import { getHome, getStoreSettings, type StoreSettings } from '@/services/store'
 
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
   openGraph: { url: '/', images: [SHARE_IMAGE] },
 }
 
-const BENEFITS = [
+const benefits = (store: StoreSettings) => [
   {
     icon: Truck,
     title: 'Gratis ongkir',
-    text: `Pengiriman reguler gratis mulai ${formatRupiah(FREE_SHIPPING_MIN)}.`,
+    text: `Pengiriman reguler gratis mulai ${formatRupiah(store.freeShippingMin)}.`,
   },
   {
     icon: RotateCcw,
-    title: `Retur ${RETURN_DAYS} hari`,
+    title: `Retur ${store.returnDays} hari`,
     text: 'Tukar atau kembalikan jika ukurannya tidak pas.',
   },
   {
@@ -61,25 +57,25 @@ export default async function HomePage() {
   // Renders per request, because the catalog lives in the API and not in the build.
   await connection()
 
-  const [categories, featured, newest, railProducts] = await Promise.all([
-    getCategories(),
-    getFeaturedProducts(8),
-    getNewProducts(4),
-    getRailProducts(8),
-  ])
+  // Every list on this page is arranged in the dashboard.
+  const [home, store] = await Promise.all([getHome(), getStoreSettings()])
+  const { categories, featured, newArrivals: newest, sale, rail: railProducts } = home
 
   const railItems = railProducts.map((product) => ({
     id: product.slug,
     name: product.name,
     description: product.description,
-    kind: product.railKind,
+    kind: product.railKind ?? 'tee',
     color: product.colors[0].hex,
+    image: product.railImage ? mediaSrc(product.railImage) : undefined,
     tag: formatRupiahShort(product.price),
     details: product.details.slice(0, 3),
   }))
   const heroPiece = Math.max(
     0,
-    railProducts.findIndex((product) => product.railKind === 'hoodie'),
+    railProducts.findIndex((product) =>
+      home.railFeatured ? product.id === home.railFeatured : product.railKind === 'hoodie',
+    ),
   )
 
   return (
@@ -109,11 +105,20 @@ export default async function HomePage() {
                     {category.description}
                   </p>
                   <div className="relative mt-4 min-h-28 flex-1">
-                    <ProductArt
-                      kind={category.art}
-                      color={category.artColor}
-                      className="absolute inset-0 size-full transition-transform duration-200 group-hover:scale-[1.03]"
-                    />
+                    {category.cover ? (
+                      // The product chosen for this tile in the dashboard.
+                      <ProductImage
+                        product={category.cover}
+                        sizes="(min-width: 768px) 25vw, 50vw"
+                        className="object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+                      />
+                    ) : (
+                      <ProductArt
+                        kind={category.art}
+                        color={category.artColor}
+                        className="absolute inset-0 size-full transition-transform duration-200 group-hover:scale-[1.03]"
+                      />
+                    )}
                   </div>
                 </Link>
               </li>
@@ -158,10 +163,25 @@ export default async function HomePage() {
         </Container>
       </section>
 
+      {sale.length > 0 && (
+        <section aria-labelledby="diskon" className="pb-16 lg:pb-28">
+          <Container>
+            <SectionHeading id="diskon" title="Sedang diskon." href="/produk" linkLabel="Lihat semua" />
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-8 md:gap-x-6 lg:grid-cols-4">
+              {sale.map((product) => (
+                <li key={product.id}>
+                  <ProductCard product={product} />
+                </li>
+              ))}
+            </ul>
+          </Container>
+        </section>
+      )}
+
       <section aria-label="Keunggulan toko" className="bg-muted py-12 lg:py-16">
         <Container>
           <ul className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {BENEFITS.map((benefit) => (
+            {benefits(store).map((benefit) => (
               <li key={benefit.title}>
                 <benefit.icon aria-hidden="true" className="size-6" />
                 <h3 className="mt-3 font-semibold">{benefit.title}</h3>
@@ -172,7 +192,7 @@ export default async function HomePage() {
         </Container>
       </section>
 
-      <HomeFaq />
+      <HomeFaq store={store} />
     </>
   )
 }

@@ -1,4 +1,4 @@
-import { FREE_SHIPPING_MIN, RETURN_DAYS, SHIPPING_OPTIONS } from '@/lib/pricing'
+import type { StoreSettings } from '@/services/store'
 import { absoluteUrl, siteConfig } from '@/lib/site'
 import type { Category, Product } from '@/types/catalog'
 
@@ -69,7 +69,7 @@ export function breadcrumbJsonLd(items: BreadcrumbItem[]) {
   }
 }
 
-export function productJsonLd(product: Product, category?: Category) {
+export function productJsonLd(product: Product, store: StoreSettings, category?: Category) {
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -96,7 +96,7 @@ export function productJsonLd(product: Product, category?: Category) {
         '@type': 'OfferShippingDetails',
         shippingRate: {
           '@type': 'MonetaryAmount',
-          value: product.price >= FREE_SHIPPING_MIN ? 0 : SHIPPING_OPTIONS.reguler.cost,
+          value: product.price >= store.freeShippingMin ? 0 : store.flatRates.reguler,
           currency: 'IDR',
         },
         shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'ID' },
@@ -110,7 +110,7 @@ export function productJsonLd(product: Product, category?: Category) {
         '@type': 'MerchantReturnPolicy',
         applicableCountry: 'ID',
         returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-        merchantReturnDays: RETURN_DAYS,
+        merchantReturnDays: store.returnDays,
         returnMethod: 'https://schema.org/ReturnByMail',
         returnFees: 'https://schema.org/FreeReturn',
       },

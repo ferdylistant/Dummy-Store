@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { mediaSrc } from '@/lib/media'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/types/catalog'
 import { ProductArt } from './product-art'
@@ -17,11 +18,13 @@ export function ProductImage({
   priority?: boolean
   className?: string
 }) {
-  if (product.image) {
+  const photo = product.images?.[0]
+  const src = photo ? mediaSrc(photo.url) : product.image
+  if (src) {
     return (
       <Image
-        src={product.image}
-        alt={product.name}
+        src={src}
+        alt={photo?.alt || product.name}
         fill
         sizes={sizes}
         priority={priority}

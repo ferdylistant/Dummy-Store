@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { Drawer } from '@/components/ui/drawer'
 import { formatRupiah } from '@/lib/format'
-import { FREE_SHIPPING_MIN } from '@/lib/pricing'
+import { useStoreSettings } from '@/features/store/store-settings'
 import { CartLineItem } from './cart-line-item'
 import { CartLoadError } from './cart-load-error'
 import { CartLinesSkeleton } from './cart-skeletons'
@@ -19,7 +19,8 @@ export function CartDrawer() {
   const isOpen = useCart((state) => state.isOpen)
   const closeCart = useCart((state) => state.closeCart)
   const { lines, subtotal, count, isLoading, isError, retry } = useCartLines()
-  const remaining = FREE_SHIPPING_MIN - subtotal
+  const { freeShippingMin } = useStoreSettings()
+  const remaining = freeShippingMin - subtotal
 
   useEffect(() => {
     useCart.persist.rehydrate()

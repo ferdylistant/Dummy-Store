@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Drawer } from '@/components/ui/drawer'
-import { mainNavigation } from '@/lib/site'
+import type { NavItem } from '@/lib/site'
 import { cn } from '@/lib/utils'
 import { isActivePath } from './nav-links'
 
@@ -16,7 +16,7 @@ const SECONDARY_LINKS = [
   { label: 'Kontak', href: '/kontak' },
 ]
 
-export function MobileMenu() {
+export function MobileMenu({ navigation }: { navigation: NavItem[] }) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
   const close = () => setOpen(false)
@@ -35,7 +35,7 @@ export function MobileMenu() {
       <Drawer open={open} onClose={close} title="Menu" side="left">
         <nav aria-label="Menu mobile" className="px-4 pt-2 pb-6">
           <ul>
-            {mainNavigation.map((item) => {
+            {navigation.map((item) => {
               const active = isActivePath(pathname, item.href)
               return (
                 <li key={item.href}>

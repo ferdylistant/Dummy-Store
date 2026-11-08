@@ -6,8 +6,10 @@ import { SiteHeader } from '@/components/layout/site-header'
 import { MotionProvider } from '@/components/motion-provider'
 import { JsonLd } from '@/components/seo/json-ld'
 import { CartDrawer } from '@/features/cart/cart-drawer'
+import { StoreSettingsProvider } from '@/features/store/store-settings'
 import { organizationJsonLd } from '@/lib/seo'
-import { siteConfig } from '@/lib/site'
+import { navigationFor, siteConfig } from '@/lib/site'
+import { getNavigationCategories, getStoreSettings } from '@/services/store'
 import './globals.css'
 
 const inter = Inter({
@@ -16,32 +18,39 @@ const inter = Inter({
   variable: '--font-inter',
 })
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.url),
-  title: {
-    default: `${siteConfig.name} | ${siteConfig.tagline}`,
-    template: `%s | ${siteConfig.name}`,
-  },
-  description: siteConfig.description,
-  applicationName: siteConfig.name,
-  openGraph: {
-    type: 'website',
-    siteName: siteConfig.name,
-    locale: siteConfig.locale,
-  },
-  twitter: { card: 'summary_large_image' },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
-  },
+/** The store name and tagline come from the dashboard. */
+export async function generateMetadata(): Promise<Metadata> {
+  const store = await getStoreSettings()
+  return {
+    metadataBase: new URL(siteConfig.url),
+    title: {
+      default: `${store.name} | ${store.tagline}`,
+      template: `%s | ${store.name}`,
+    },
+    description: siteConfig.description,
+    applicationName: store.name,
+    openGraph: {
+      type: 'website',
+      siteName: store.name,
+      locale: siteConfig.locale,
+    },
+    twitter: { card: 'summary_large_image' },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
+    },
+  }
 }
 
 export const viewport: Viewport = {
   themeColor: '#ffffff',
 }
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const [store, categories] = await Promise.all([getStoreSettings(), getNavigationCategories()])
+  const navigation = navigationFor(categories)
+
   return (
     <html lang="id" className={inter.variable}>
       <body className="flex min-h-dvh flex-col antialiased">
@@ -52,14 +61,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Lewati ke konten utama
         </a>
         <JsonLd data={organizationJsonLd()} />
-        <MotionProvider>
-          <SiteHeader />
-          <main id="konten" tabIndex={-1} className="flex-1 outline-none">
-            {children}
-          </main>
-          <SiteFooter />
-          <CartDrawer />
-        </MotionProvider>
+        <StoreSettingsProvider settings={store}>
+          <MotionProvider>
+            <SiteHeader store={store} navigation={navigation} />
+            <main id="konten" tabIndex={-1} className="flex-1 outline-none">
+              {children}
+            </main>
+            <SiteFooter store={store} navigation={navigation} />
+            <CartDrawer />
+          </MotionProvider>
+        </StoreSettingsProvider>
       </body>
     </html>
   )

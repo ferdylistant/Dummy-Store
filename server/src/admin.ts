@@ -170,7 +170,7 @@ export async function saveProduct(db: Database, input: ProductInput, id?: string
   return productId
 }
 
-export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl) {
+export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChange: () => void = () => {}) {
   const router = express.Router()
 
   const requireAdmin: RequestHandler = async (req, res, next) => {
@@ -182,6 +182,16 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl) {
     throw new HttpError(401, 'unauthorized', 'Silakan masuk sebagai admin.')
   }
   router.use(requireAdmin)
+
+  // Every successful change refreshes the store's cached pages.
+  router.use((req, res, next) => {
+    if (req.method !== 'GET') {
+      res.on('finish', () => {
+        if (res.statusCode < 400) onChange()
+      })
+    }
+    next()
+  })
 
   // ---------- overview
   router.get('/overview', async (_req, res) => {

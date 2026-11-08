@@ -5,6 +5,7 @@ import { Container } from '@/components/ui/container'
 import { ProductCard } from '@/features/products/product-card'
 import { ProductView } from '@/features/products/product-view'
 import { productJsonLd } from '@/lib/seo'
+import { getStoreSettings } from '@/services/store'
 import { getCategory, getProductBySlug, getRelatedProducts } from '@/services/products'
 
 export const revalidate = 60
@@ -40,7 +41,7 @@ export default async function ProductPage(props: PageProps<'/produk/[slug]'>) {
 
   return (
     <>
-      <JsonLd data={productJsonLd(product, category)} />
+      <JsonLd data={productJsonLd(product, await getStoreSettings(), category)} />
       <Container className="py-6 lg:py-8">
         <Breadcrumbs
           items={[

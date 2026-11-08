@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { InfoPage } from '@/components/layout/info-page'
-import { siteConfig } from '@/lib/site'
+import { getStoreSettings } from '@/services/store'
 import { SHARE_IMAGE } from '@/lib/seo'
 
 const DESCRIPTION = 'Cara kami mengumpulkan, memakai, dan melindungi data pribadi Anda.'
@@ -12,7 +12,8 @@ export const metadata: Metadata = {
   openGraph: { title: 'Kebijakan Privasi', description: DESCRIPTION, url: '/kebijakan-privasi', images: [SHARE_IMAGE] },
 }
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const store = await getStoreSettings()
   return (
     <InfoPage title="Kebijakan Privasi" path="/kebijakan-privasi" intro={DESCRIPTION}>
       <section>
@@ -32,7 +33,7 @@ export default function PrivacyPage() {
       </section>
       <section>
         <h2>Hubungi kami</h2>
-        <p>Pertanyaan tentang data pribadi bisa dikirim ke {siteConfig.email}.</p>
+        <p>Pertanyaan tentang data pribadi bisa dikirim ke {store.email}.</p>
       </section>
     </InfoPage>
   )

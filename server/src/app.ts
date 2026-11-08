@@ -96,6 +96,8 @@ export interface AppOptions {
   trustProxy?: number
   /** The API's own public address, used for picture links. Relative links without it. */
   publicUrl?: string
+  /** Called after the dashboard changes something the store shows. */
+  onStoreChange?: () => void
 }
 
 export function createApp(db: Database, options: AppOptions) {
@@ -147,7 +149,7 @@ export function createApp(db: Database, options: AppOptions) {
   })
 
   app.use('/api/me', accountRouter(db, options.auth))
-  app.use('/api/admin', adminRouter(db, options.auth, mediaUrl))
+  app.use('/api/admin', adminRouter(db, options.auth, mediaUrl, options.onStoreChange))
 
   // Pictures never change under the same id, so browsers may keep them a year.
   app.get('/api/media/:id', async (req, res) => {

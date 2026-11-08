@@ -7,6 +7,7 @@ import { createMailer } from './mail.js'
 import { expireOverdueOrders } from './orders.js'
 import { createMidtransGateway } from './payments/midtrans.js'
 import { createBiteshipRegions } from './regions.js'
+import { storeRevalidator } from './revalidate.js'
 
 const SWEEP_MS = 5 * 60_000
 
@@ -52,6 +53,7 @@ const app = createApp(db, {
   google: Boolean(google),
   trustProxy: config.trustProxy,
   publicUrl: config.apiUrl,
+  onStoreChange: storeRevalidator(config.revalidate),
 })
 
 const server = app.listen(config.port, () => {

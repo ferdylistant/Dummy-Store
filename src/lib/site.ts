@@ -12,13 +12,29 @@ export function absoluteUrl(path = '/') {
   return `${siteConfig.url}${path.startsWith('/') ? path : `/${path}`}`
 }
 
-export const mainNavigation = [
-  { label: 'Semua Produk', href: '/produk' },
-  { label: 'Baju', href: '/kategori/baju' },
-  { label: 'Celana', href: '/kategori/celana' },
-  { label: 'Bandana', href: '/kategori/bandana' },
-  { label: 'Merchandise', href: '/kategori/merchandise' },
+export interface NavItem {
+  label: string
+  href: string
+}
+
+/** Shown when the API cannot be reached. */
+const FALLBACK_CATEGORIES = [
+  { slug: 'baju', name: 'Baju' },
+  { slug: 'celana', name: 'Celana' },
+  { slug: 'bandana', name: 'Bandana' },
+  { slug: 'merchandise', name: 'Merchandise' },
 ]
+
+/** All products, then each category from the dashboard, in its order. */
+export function navigationFor(categories: { slug: string; name: string }[]): NavItem[] {
+  const list = categories.length ? categories : FALLBACK_CATEGORIES
+  return [
+    { label: 'Semua Produk', href: '/produk' },
+    ...list.map((category) => ({ label: category.name, href: `/kategori/${category.slug}` })),
+  ]
+}
+
+export const mainNavigation = navigationFor([])
 
 export const footerNavigation = [
   {

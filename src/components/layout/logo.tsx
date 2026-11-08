@@ -1,5 +1,11 @@
-/** Hang tag mark, shared with the favicon. */
-export function Logo() {
+import Image from 'next/image'
+import { mediaSrc } from '@/lib/media'
+
+/** The logo uploaded in the dashboard, or the hang tag mark shared with the favicon. */
+export function Logo({ src }: { src?: string | null }) {
+  if (src) {
+    return <Image src={mediaSrc(src)} alt="" width={20} height={20} className="size-5 object-contain" />
+  }
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5">
       <path

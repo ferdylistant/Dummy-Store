@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { InfoPage } from '@/components/layout/info-page'
-import { RETURN_DAYS } from '@/lib/pricing'
+import { getStoreSettings } from '@/services/store'
 import { siteConfig } from '@/lib/site'
 import { SHARE_IMAGE } from '@/lib/seo'
 
@@ -13,7 +13,8 @@ export const metadata: Metadata = {
   openGraph: { title: 'Syarat dan Ketentuan', description: DESCRIPTION, url: '/syarat-ketentuan', images: [SHARE_IMAGE] },
 }
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const store = await getStoreSettings()
   return (
     <InfoPage title="Syarat dan Ketentuan" path="/syarat-ketentuan" intro={DESCRIPTION}>
       <section>
@@ -30,7 +31,7 @@ export default function TermsPage() {
       <section>
         <h2>Retur</h2>
         <p>
-          Retur berlaku {RETURN_DAYS} hari setelah barang diterima, selama produk belum dipakai dan
+          Retur berlaku {store.returnDays} hari setelah barang diterima, selama produk belum dipakai dan
           label masih terpasang.
         </p>
       </section>

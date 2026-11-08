@@ -55,6 +55,13 @@ export const config = {
         : { email: 'admin@example.com', password: 'password' },
   corsOrigins,
   adminUrl,
+  /** Where the store clears its cache after dashboard changes, and the secret it expects. */
+  revalidate: (() => {
+    const secret =
+      process.env.STORE_REVALIDATE_SECRET?.trim() || (process.env.NODE_ENV === 'production' ? '' : 'dev-revalidate-secret')
+    const site = (process.env.SITE_URL ?? corsOrigins[0] ?? 'http://localhost:3000').replace(/\/$/, '')
+    return secret ? { url: `${site}/api/revalidate`, secret } : null
+  })(),
   /** Proxy hops in front of the API, such as 1 behind a load balancer. */
   trustProxy: Number(process.env.TRUST_PROXY ?? 0) || 0,
   apiUrl: (process.env.API_URL ?? `http://localhost:${port}`).replace(/\/$/, ''),

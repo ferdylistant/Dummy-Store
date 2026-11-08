@@ -6,6 +6,8 @@ const BASE_URL = `${IS_SERVER ? (process.env.API_URL ?? PUBLIC_URL) : PUBLIC_URL
 
 const TIMEOUT_MS = 8000
 const REVALIDATE_SECONDS = 60
+/** Every cached read from the API. Dashboard changes clear it (see app/api/revalidate). */
+export const STORE_CACHE_TAG = 'store'
 
 export class ApiError extends Error {
   status: number
@@ -48,7 +50,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 export function apiGet<T>(path: string) {
   return request<T>(
     path,
-    IS_SERVER ? { next: { revalidate: REVALIDATE_SECONDS } } : { cache: 'no-store' },
+    IS_SERVER ? { next: { revalidate: REVALIDATE_SECONDS, tags: [STORE_CACHE_TAG] } } : { cache: 'no-store' },
   )
 }
 

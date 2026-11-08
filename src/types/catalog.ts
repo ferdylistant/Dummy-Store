@@ -1,4 +1,5 @@
-export type CategorySlug = 'baju' | 'celana' | 'bandana' | 'merchandise'
+/** Categories are managed in the dashboard, so any slug may exist. */
+export type CategorySlug = string
 
 export type ProductArtKind =
   | 'tee'
@@ -27,6 +28,8 @@ export interface Category {
   intro: string
   art: ProductArtKind
   artColor: string
+  /** The product pictured on the category tile, when one is chosen in the dashboard. */
+  coverProductId?: string
 }
 
 export interface ProductColor {
@@ -56,6 +59,18 @@ export interface Product {
   railKind?: RailKind
   /** Real product photo. The illustration is used when this is empty. */
   image?: string
+  /** Photos from the dashboard, in display order. */
+  images: ProductImage[]
+  /** Cut-out picture for the hanging rail on the home page. */
+  railImage?: string
+  weightGrams: number
+}
+
+export interface ProductImage {
+  url: string
+  alt: string
+  width: number
+  height: number
 }
 
 export type SortKey = 'rekomendasi' | 'terbaru' | 'termurah' | 'termahal'

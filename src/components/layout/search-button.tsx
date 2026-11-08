@@ -7,9 +7,9 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Container } from '@/components/ui/container'
 import { Drawer } from '@/components/ui/drawer'
-import { mainNavigation } from '@/lib/site'
+import type { NavItem } from '@/lib/site'
 
-export function SearchButton() {
+export function SearchButton({ navigation }: { navigation: NavItem[] }) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
 
@@ -47,7 +47,7 @@ export function SearchButton() {
           </Form>
           <p className="mt-6 text-xs text-muted-foreground">Telusuri</p>
           <ul className="mt-1">
-            {mainNavigation.map((item) => (
+            {navigation.map((item) => (
               <li key={item.href}>
                 <Link
                   href={item.href}

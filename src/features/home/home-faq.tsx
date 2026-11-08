@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { Container } from '@/components/ui/container'
 import { faqItems } from '@/content/help'
+import type { StoreSettings } from '@/services/store'
 
-export function HomeFaq() {
+export function HomeFaq({ store }: { store: StoreSettings }) {
   return (
     <section aria-labelledby="tanya" className="py-16 lg:py-28">
       <Container className="grid gap-10 lg:grid-cols-[2fr_3fr] lg:gap-16">
@@ -27,7 +28,7 @@ export function HomeFaq() {
         </div>
 
         <div className="border-t border-dashed border-input">
-          {faqItems.map((item, index) => (
+          {faqItems(store).map((item, index) => (
             <details
               key={item.question}
               name="faq"

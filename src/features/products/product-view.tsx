@@ -10,11 +10,12 @@ import { PaperTag } from '@/components/ui/paper-tag'
 import { QuantityStepper } from '@/components/ui/quantity-stepper'
 import { MAX_QUANTITY, useCart } from '@/features/cart/store'
 import { formatRupiah, formatRupiahShort } from '@/lib/format'
-import { FREE_SHIPPING_MIN, RETURN_DAYS } from '@/lib/pricing'
+import { useStoreSettings } from '@/features/store/store-settings'
 import { siteConfig } from '@/lib/site'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/types/catalog'
 import { AddedNotice, CartFlight, cartTarget, type AddedItem, type Flight } from './cart-feedback'
+import { ProductGallery } from './product-gallery'
 import { ProductImage } from './product-image'
 import { ProductPrice } from './product-price'
 
@@ -27,6 +28,7 @@ const ADD_COOLDOWN_MS = 900
 export function ProductView({ product }: { product: Product }) {
   const router = useRouter()
   const reduced = useReducedMotion()
+  const store = useStoreSettings()
   const add = useCart((state) => state.add)
   const hasSizes = product.sizes[0] !== ONE_SIZE
   const [color, setColor] = useState(product.colors[0])
@@ -106,46 +108,63 @@ export function ProductView({ product }: { product: Product }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:gap-12">
-      <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-muted lg:sticky lg:top-24 lg:self-start">
-        {/*
-          The new color fades in on top while the old one stays fully opaque
-          underneath, so the grey tile never shows through mid change.
-        */}
-        <div data-product-photo className="absolute inset-0 isolate">
-          {photos.map((photo) => (
-            <m.div
-              key={photo.id}
-              initial={photo.id === 0 ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              onAnimationComplete={() =>
-                setPhotos((stack) => (stack[0].id < photo.id ? stack.filter((item) => item.id >= photo.id) : stack))
-              }
-              className="absolute inset-0"
-            >
-              <ProductImage
-                product={product}
-                color={photo.color.hex}
-                sizes="(min-width: 1024px) 50vw, 100vw"
-                priority={photo.id === 0}
-              />
-            </m.div>
-          ))}
-        </div>
+      {product.images.length > 0 ? (
+        <ProductGallery product={product}>
+          <m.span
+            aria-hidden="true"
+            animate={tagSwing}
+            style={{ transformOrigin: '50% 0' }}
+            data-price-tag
+            className="absolute top-0 right-6 z-10 drop-shadow-sm lg:right-10"
+          >
+            <span className="mx-auto block h-8 w-px bg-input lg:h-12" />
+            <PaperTag className="text-sm font-semibold tabular-nums">
+              {formatRupiahShort(product.price)}
+            </PaperTag>
+          </m.span>
+        </ProductGallery>
+      ) : (
+        <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-muted lg:sticky lg:top-24 lg:self-start">
+          {/*
+            The new color fades in on top while the old one stays fully opaque
+            underneath, so the grey tile never shows through mid change.
+          */}
+          <div data-product-photo className="absolute inset-0 isolate">
+            {photos.map((photo) => (
+              <m.div
+                key={photo.id}
+                initial={photo.id === 0 ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+                onAnimationComplete={() =>
+                  setPhotos((stack) => (stack[0].id < photo.id ? stack.filter((item) => item.id >= photo.id) : stack))
+                }
+                className="absolute inset-0"
+              >
+                <ProductImage
+                  product={product}
+                  color={photo.color.hex}
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  priority={photo.id === 0}
+                />
+              </m.div>
+            ))}
+          </div>
 
-        <m.span
-          aria-hidden="true"
-          animate={tagSwing}
-          style={{ transformOrigin: '50% 0' }}
-          data-price-tag
-          className="absolute top-0 right-6 z-10 drop-shadow-sm lg:right-10"
-        >
-          <span className="mx-auto block h-8 w-px bg-input lg:h-12" />
-          <PaperTag className="text-sm font-semibold tabular-nums">
-            {formatRupiahShort(product.price)}
-          </PaperTag>
-        </m.span>
-      </div>
+          <m.span
+            aria-hidden="true"
+            animate={tagSwing}
+            style={{ transformOrigin: '50% 0' }}
+            data-price-tag
+            className="absolute top-0 right-6 z-10 drop-shadow-sm lg:right-10"
+          >
+            <span className="mx-auto block h-8 w-px bg-input lg:h-12" />
+            <PaperTag className="text-sm font-semibold tabular-nums">
+              {formatRupiahShort(product.price)}
+            </PaperTag>
+          </m.span>
+        </div>
+      )}
 
       <div>
         {(product.compareAtPrice || product.isNew) && (
@@ -281,11 +300,11 @@ export function ProductView({ product }: { product: Product }) {
         <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
           <li className="flex gap-2">
             <Truck aria-hidden="true" className="size-5 shrink-0" />
-            Gratis ongkir reguler mulai {formatRupiah(FREE_SHIPPING_MIN)}
+            Gratis ongkir reguler mulai {formatRupiah(store.freeShippingMin)}
           </li>
           <li className="flex gap-2">
             <RotateCcw aria-hidden="true" className="size-5 shrink-0" />
-            Retur {RETURN_DAYS} hari jika ukurannya tidak pas
+            Retur {store.returnDays} hari jika ukurannya tidak pas
           </li>
         </ul>
 

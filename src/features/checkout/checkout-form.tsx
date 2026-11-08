@@ -19,6 +19,7 @@ import { authClient } from '@/lib/auth-client'
 import { formatRupiah } from '@/lib/format'
 import { PAYMENT_GROUPS } from '@/lib/payment-methods'
 import { shippingCost, SHIPPING_OPTIONS } from '@/lib/pricing'
+import { useStoreSettings } from '@/features/store/store-settings'
 import { cn } from '@/lib/utils'
 import { getAddresses, type Address } from '@/services/account'
 import { ApiError } from '@/services/api'
@@ -201,7 +202,8 @@ export function CheckoutForm() {
 
   const values = useWatch({ control })
   const shippingMethod = values.shippingMethod ?? 'reguler'
-  const shipping = shippingCost(subtotal, shippingMethod)
+  const store = useStoreSettings()
+  const shipping = shippingCost(subtotal, shippingMethod, store)
 
   // The browser back button moves between steps instead of leaving the form.
   useEffect(() => {
@@ -483,7 +485,7 @@ export function CheckoutForm() {
                 <legend className="sr-only">Metode pengiriman</legend>
                 {(Object.keys(SHIPPING_OPTIONS) as (keyof typeof SHIPPING_OPTIONS)[]).map(
                   (method) => {
-                    const cost = shippingCost(subtotal, method)
+                    const cost = shippingCost(subtotal, method, store)
                     return (
                       <OptionCard
                         key={method}

@@ -1,18 +1,19 @@
 import { formatRupiah } from '@/lib/format'
-import { FREE_SHIPPING_MIN, RETURN_DAYS, SHIPPING_OPTIONS } from '@/lib/pricing'
+import { SHIPPING_OPTIONS } from '@/lib/pricing'
+import type { StoreSettings } from '@/services/store'
 
-export const faqItems = [
+export const faqItems = (store: StoreSettings) => [
   {
     question: 'Berapa lama pesanan sampai?',
     answer: `Pengiriman reguler membutuhkan ${SHIPPING_OPTIONS.reguler.eta}, dan pengiriman ekspres membutuhkan ${SHIPPING_OPTIONS.ekspres.eta}.`,
   },
   {
     question: 'Apakah ada gratis ongkir?',
-    answer: `Ada. Pengiriman reguler gratis untuk belanja mulai ${formatRupiah(FREE_SHIPPING_MIN)}.`,
+    answer: `Ada. Pengiriman reguler gratis untuk belanja mulai ${formatRupiah(store.freeShippingMin)}.`,
   },
   {
     question: 'Bagaimana jika ukurannya tidak pas?',
-    answer: `Produk bisa ditukar atau dikembalikan dalam ${RETURN_DAYS} hari setelah diterima, selama belum dipakai dan label masih terpasang.`,
+    answer: `Produk bisa ditukar atau dikembalikan dalam ${store.returnDays} hari setelah diterima, selama belum dipakai dan label masih terpasang.`,
   },
   {
     question: 'Metode pembayaran apa saja yang tersedia?',

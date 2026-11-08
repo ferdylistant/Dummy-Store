@@ -1,15 +1,16 @@
-export const FREE_SHIPPING_MIN = 300000
-export const RETURN_DAYS = 14
+import type { StoreSettings } from '@/services/store'
 
 export const SHIPPING_OPTIONS = {
-  reguler: { label: 'Reguler', eta: '2 sampai 5 hari kerja', cost: 20000 },
-  ekspres: { label: 'Ekspres', eta: '1 sampai 2 hari kerja', cost: 35000 },
+  reguler: { label: 'Reguler', eta: '2 sampai 5 hari kerja' },
+  ekspres: { label: 'Ekspres', eta: '1 sampai 2 hari kerja' },
 } as const
 
 export type ShippingMethod = keyof typeof SHIPPING_OPTIONS
 
-/** Display estimate only. server/src/pricing.ts decides the amount charged. */
-export function shippingCost(subtotal: number, method: ShippingMethod) {
-  if (method === 'reguler' && subtotal >= FREE_SHIPPING_MIN) return 0
-  return SHIPPING_OPTIONS[method].cost
+type Rates = Pick<StoreSettings, 'freeShippingMin' | 'flatRates'>
+
+/** Display estimate only. The API decides the amount charged, from the same settings. */
+export function shippingCost(subtotal: number, method: ShippingMethod, store: Rates) {
+  if (method === 'reguler' && subtotal >= store.freeShippingMin) return 0
+  return store.flatRates[method]
 }
