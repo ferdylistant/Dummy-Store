@@ -113,6 +113,7 @@ function ModeTabs({ mode, next }: { mode: AuthMode; next?: string }) {
 export function AuthShell({
   mode,
   next,
+  signedInTo,
   title,
   intro,
   children,
@@ -120,6 +121,8 @@ export function AuthShell({
 }: {
   mode: AuthMode
   next?: string
+  /** Where a signed in visitor is sent instead. Null keeps the page open. */
+  signedInTo: string | null
   title: string
   intro?: ReactNode
   children: ReactNode
@@ -130,11 +133,12 @@ export function AuthShell({
   const { data: session } = authClient.useSession()
   const signedIn = Boolean(session)
 
-  // The proxy catches this first. When the API sits on another domain its
-  // cookie is invisible to the proxy, so the page checks as well.
+  // The proxy catches this first. The page checks too: when the API's cookie is
+  // on another domain the proxy cannot see it, and signing in from another tab
+  // reaches this tab through the auth client without a reload.
   useEffect(() => {
-    if (signedIn && mode !== 'pulih') router.replace(next ?? '/akun')
-  }, [signedIn, mode, next, router])
+    if (signedIn && signedInTo) router.replace(signedInTo)
+  }, [signedIn, signedInTo, router])
 
   return (
     <TagName.Provider value={setName}>

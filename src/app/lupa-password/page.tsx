@@ -9,6 +9,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       mode="pulih"
+      signedInTo="/akun/keamanan"
       title="Lupa password"
       intro="Tulis email akun Anda. Kami kirim tautan untuk membuat password baru."
       footer={

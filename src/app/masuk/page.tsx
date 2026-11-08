@@ -14,6 +14,7 @@ export default async function SignInPage(props: PageProps<'/masuk'>) {
     <AuthShell
       mode="masuk"
       next={next}
+      signedInTo={next}
       title="Masuk"
       intro={
         params.reset

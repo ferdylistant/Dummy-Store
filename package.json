@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm test -w server"
+    "test": "npm test -w server && npm run test:web",
+    "test:web": "node --experimental-strip-types --no-warnings --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.3",

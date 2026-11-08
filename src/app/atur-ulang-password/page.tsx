@@ -12,6 +12,8 @@ export default async function ResetPasswordPage(props: PageProps<'/atur-ulang-pa
   return (
     <AuthShell
       mode="pulih"
+      // A reset link from email stays usable while signed in. See src/proxy.ts.
+      signedInTo={typeof token === 'string' ? null : '/akun/keamanan'}
       title={valid ? 'Buat password baru' : 'Tautan tidak berlaku'}
       intro={valid ? undefined : 'Tautan ini sudah kedaluwarsa atau pernah dipakai. Minta tautan baru.'}
       footer={

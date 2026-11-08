@@ -13,6 +13,7 @@ export default async function SignUpPage(props: PageProps<'/daftar'>) {
     <AuthShell
       mode="daftar"
       next={next}
+      signedInTo={next}
       title="Buat akun"
       intro="Simpan alamat untuk checkout lebih cepat dan pantau pengiriman pesanan."
       footer={

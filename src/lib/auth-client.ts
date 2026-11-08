@@ -2,12 +2,25 @@
 
 import { createAuthClient } from 'better-auth/react'
 
+/**
+ * Better Auth tells other tabs about signing out, not signing in. This channel
+ * covers signing in, so a tab sitting on a guest page moves on by itself.
+ */
+const tabs = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('ds-auth')
+
 /** Talks to Better Auth on the Express API. Cookies carry the session. */
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000',
   basePath: '/api/auth',
-  fetchOptions: { credentials: 'include' },
+  fetchOptions: {
+    credentials: 'include',
+    onSuccess({ request }) {
+      if (/\/sign-in\/email$/.test(String(request.url))) tabs?.postMessage('signed-in')
+    },
+  },
 })
+
+tabs?.addEventListener('message', () => authClient.$store.notify('$sessionSignal'))
 
 const MESSAGES: Record<string, string> = {
   INVALID_EMAIL_OR_PASSWORD: 'Email atau password salah.',
