@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, ChevronDown, Info, ShoppingBag } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Clock, ShieldCheck, ShoppingBag } from 'lucide-react'
 import { m } from 'motion/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -21,6 +21,7 @@ import { createOrder } from '@/services/orders'
 import { CheckoutSkeleton } from './checkout-skeleton'
 import { CheckoutSteps } from './checkout-steps'
 import { checkoutSchema, type CheckoutValues } from './schema'
+import { loadSnap, openSnap } from './snap'
 
 const STEPS = [
   {
@@ -28,17 +29,13 @@ const STEPS = [
     fields: ['email', 'phone', 'fullName', 'address', 'city', 'province', 'postalCode', 'notes'],
   },
   { title: 'Pengiriman', fields: ['shippingMethod'] },
-  { title: 'Pembayaran', fields: ['paymentMethod'] },
+  { title: 'Pembayaran', fields: [] },
 ] as const
 
 const STEP_TITLES = STEPS.map((step) => step.title)
 const LAST_STEP = STEPS.length - 1
 
-const PAYMENT_OPTIONS = [
-  { value: 'transfer', label: 'Transfer bank', hint: 'Bayar melalui rekening virtual' },
-  { value: 'ewallet', label: 'Dompet digital', hint: 'Bayar dengan aplikasi dompet digital' },
-  { value: 'cod', label: 'Bayar di tempat', hint: 'Bayar saat pesanan diterima' },
-] as const
+const PAYMENT_METHODS = ['Virtual account bank', 'QRIS', 'Dompet digital', 'Kartu kredit']
 
 function OptionCard({
   label,
@@ -120,8 +117,9 @@ export function CheckoutForm() {
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
   const [submitError, setSubmitError] = useState('')
+  const [unfinished, setUnfinished] = useState(false)
   const [ordered, setOrdered] = useState(false)
-  // Stays the same across retries, so a lost response cannot create two orders.
+  // Stays the same across retries, so reopening payment reuses the same order.
   const [idempotencyKey] = useState(() => crypto.randomUUID())
   const headingRef = useRef<HTMLHeadingElement>(null)
   const shownStep = useRef(0)
@@ -135,12 +133,11 @@ export function CheckoutForm() {
   } = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     mode: 'onTouched',
-    defaultValues: { shippingMethod: 'reguler', paymentMethod: 'transfer' },
+    defaultValues: { shippingMethod: 'reguler' },
   })
 
   const values = useWatch({ control })
   const shippingMethod = values.shippingMethod ?? 'reguler'
-  const paymentMethod = values.paymentMethod ?? 'transfer'
   const shipping = shippingCost(subtotal, shippingMethod)
 
   // The browser back button moves between steps instead of leaving the form.
@@ -167,23 +164,41 @@ export function CheckoutForm() {
     window.history.pushState({ checkoutStep: next }, '')
   }
 
+  function finish(orderNumber: string) {
+    setOrdered(true)
+    clear()
+    router.replace(`/checkout/berhasil?pesanan=${encodeURIComponent(orderNumber)}`)
+  }
+
   async function onSubmit(customer: CheckoutValues) {
     setSubmitError('')
+    setUnfinished(false)
     try {
-      const { orderNumber } = await createOrder({ customer, items }, idempotencyKey)
-      setOrdered(true)
-      clear()
-      router.replace(`/checkout/berhasil?pesanan=${encodeURIComponent(orderNumber)}`)
+      const order = await createOrder({ customer, items }, idempotencyKey)
+      if (!order.payment) {
+        finish(order.orderNumber)
+        return
+      }
+
+      await loadSnap(order.payment.scriptUrl, order.payment.clientKey)
+      const outcome = await openSnap(order.payment.token)
+      if (outcome === 'success' || outcome === 'pending') finish(order.orderNumber)
+      else if (outcome === 'close') setUnfinished(true)
+      else setSubmitError('Pembayaran gagal diproses. Coba lagi atau pilih metode lain.')
     } catch (error) {
       setSubmitError(
-        error instanceof ApiError ? error.message : 'Pesanan gagal dibuat. Coba lagi.',
+        error instanceof ApiError
+          ? error.message
+          : 'Jendela pembayaran gagal dibuka. Periksa koneksi, lalu coba lagi.',
       )
     }
   }
 
   /** A field from an earlier step can only fail here if its step was skipped. */
   function onInvalid(fieldErrors: FieldErrors<CheckoutValues>) {
-    const invalid = STEPS.findIndex((item) => item.fields.some((field) => field in fieldErrors))
+    const invalid = STEPS.findIndex((item) =>
+      (item.fields as readonly string[]).some((field) => field in fieldErrors),
+    )
     if (invalid >= 0) goTo(invalid)
   }
 
@@ -359,30 +374,30 @@ export function CheckoutForm() {
 
             {step === 2 && (
               <>
-                <fieldset className="grid gap-3">
-                  <legend className="sr-only">Metode pembayaran</legend>
-                  {PAYMENT_OPTIONS.map((option) => (
-                    <OptionCard
-                      key={option.value}
-                      label={option.label}
-                      hint={option.hint}
-                      checked={paymentMethod === option.value}
-                      input={
-                        <input
-                          type="radio"
-                          value={option.value}
-                          className="size-5 accent-primary"
-                          {...register('paymentMethod')}
-                        />
-                      }
-                    />
-                  ))}
-                </fieldset>
-
-                <p className="mt-4 flex gap-2 rounded-xl bg-muted p-3 text-sm text-muted-foreground">
-                  <Info aria-hidden="true" className="size-5 shrink-0" />
-                  Pembayaran belum aktif. Pesanan tersimpan, tetapi belum ada tagihan sungguhan.
-                </p>
+                <div className="rounded-2xl bg-muted p-5">
+                  <p className="flex items-center gap-2 font-medium">
+                    <ShieldCheck aria-hidden="true" className="size-5" />
+                    Pembayaran aman lewat Midtrans
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Pilih cara bayar di jendela pembayaran yang terbuka setelah Anda menekan Bayar
+                    Sekarang.
+                  </p>
+                  <ul className="mt-4 flex flex-wrap gap-2">
+                    {PAYMENT_METHODS.map((method) => (
+                      <li
+                        key={method}
+                        className="rounded-full bg-background px-3 py-1 text-sm font-medium"
+                      >
+                        {method}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock aria-hidden="true" className="size-4" />
+                    Batas pembayaran 24 jam setelah pesanan dibuat.
+                  </p>
+                </div>
 
                 <section aria-labelledby="tinjau" className="mt-8">
                   <h3 id="tinjau" className="font-semibold">
@@ -409,6 +424,12 @@ export function CheckoutForm() {
             )}
           </m.div>
 
+          {unfinished && (
+            <p role="status" className="mt-4 rounded-xl bg-muted p-3 text-sm">
+              Pembayaran belum selesai. Pesanan Anda tetap tersimpan, tekan Bayar Sekarang untuk
+              melanjutkan.
+            </p>
+          )}
           {submitError && (
             <p role="alert" className="mt-4 text-sm text-destructive">
               {submitError}
@@ -430,8 +451,8 @@ export function CheckoutForm() {
             <Button type="submit" variant="action" disabled={isSubmitting}>
               {step === LAST_STEP
                 ? isSubmitting
-                  ? 'Memproses...'
-                  : 'Buat Pesanan'
+                  ? 'Membuka pembayaran...'
+                  : 'Bayar Sekarang'
                 : `Lanjut ke ${STEPS[step + 1].title}`}
               <ButtonArrow />
             </Button>

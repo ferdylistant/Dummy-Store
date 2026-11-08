@@ -84,8 +84,31 @@ export function openDatabase(path: string): Database {
   const db = new DatabaseSync(path)
   db.exec('PRAGMA foreign_keys = ON')
   db.exec(SCHEMA)
+  migrate(db)
   seed(db)
   return db
+}
+
+/** Columns added after the first release. Existing databases gain them in place. */
+const ORDER_COLUMNS = {
+  snap_token: 'TEXT',
+  payment_url: 'TEXT',
+  paid_at: 'TEXT',
+  expires_at: 'TEXT',
+}
+
+function migrate(db: Database) {
+  const existing = new Set(
+    (db.prepare('PRAGMA table_info(orders)').all() as unknown as { name: string }[]).map(
+      (column) => column.name,
+    ),
+  )
+  for (const [name, type] of Object.entries(ORDER_COLUMNS)) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE orders ADD COLUMN ${name} ${type}`)
+  }
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS orders_awaiting ON orders (status, expires_at) WHERE status = 'awaiting_payment'",
+  )
 }
 
 /** Runs the callback in one transaction, and undoes everything if it throws. */

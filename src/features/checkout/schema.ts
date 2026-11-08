@@ -13,7 +13,6 @@ export const checkoutSchema = z.object({
   postalCode: z.string().trim().regex(/^[0-9]{5}$/, 'Kode pos terdiri dari 5 angka.'),
   notes: z.string().trim().max(200, 'Catatan maksimal 200 karakter.').optional(),
   shippingMethod: z.enum(['reguler', 'ekspres']),
-  paymentMethod: z.enum(['transfer', 'ewallet', 'cod']),
 })
 
 export type CheckoutValues = z.infer<typeof checkoutSchema>

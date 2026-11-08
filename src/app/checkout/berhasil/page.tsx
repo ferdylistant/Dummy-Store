@@ -1,34 +1,34 @@
-import { CircleCheck } from 'lucide-react'
 import type { Metadata } from 'next'
-import Link from 'next/link'
-import { ButtonArrow, buttonClasses } from '@/components/ui/button'
 import { Container } from '@/components/ui/container'
+import { OrderStatus } from '@/features/checkout/order-status'
 
 export const metadata: Metadata = {
-  title: 'Pesanan Dibuat',
+  title: 'Status Pesanan',
   robots: { index: false, follow: false },
 }
 
-export default async function CheckoutSuccessPage(props: PageProps<'/checkout/berhasil'>) {
-  const { pesanan } = await props.searchParams
-  const orderNumber = typeof pesanan === 'string' ? pesanan : null
+const ORDER_NUMBER = /^DS-[0-9A-F]{10}$/
+
+export default async function CheckoutResultPage(props: PageProps<'/checkout/berhasil'>) {
+  // The popup flow sends ?pesanan=, and a Midtrans page redirect sends ?order_id=.
+  const { pesanan, order_id } = await props.searchParams
+  const raw = typeof pesanan === 'string' ? pesanan : typeof order_id === 'string' ? order_id : ''
+  const orderNumber = ORDER_NUMBER.test(raw) ? raw : null
 
   return (
-    <Container className="flex flex-col items-center py-16 text-center lg:py-24">
-      <CircleCheck aria-hidden="true" className="size-14 text-success" />
-      <h1 className="mt-4 text-4xl font-semibold tracking-tight lg:text-5xl">Pesanan dibuat</h1>
-      {orderNumber && (
-        <p className="mt-3 font-medium">
-          Nomor pesanan: <span className="tabular-nums">{orderNumber}</span>
-        </p>
+    <Container className="py-16 lg:py-24">
+      {orderNumber ? (
+        <OrderStatus
+          key={orderNumber}
+          orderNumber={orderNumber}
+          returnedFromMidtrans={typeof order_id === 'string'}
+        />
+      ) : (
+        <div className="text-center">
+          <h1 className="text-4xl font-semibold tracking-tight lg:text-5xl">Pesanan tidak ditemukan</h1>
+          <p className="mt-3 text-muted-foreground">Tautan ini tidak memuat nomor pesanan yang valid.</p>
+        </div>
       )}
-      <p className="mt-2 max-w-prose leading-relaxed text-muted-foreground">
-        Pesanan Anda tersimpan. Pembayaran belum aktif, jadi belum ada tagihan sungguhan.
-      </p>
-      <Link href="/produk" className={buttonClasses({ variant: 'action', className: 'mt-6' })}>
-        Lanjut Belanja
-        <ButtonArrow />
-      </Link>
     </Container>
   )
 }

@@ -5,7 +5,14 @@ import helmet from 'helmet'
 import { z } from 'zod'
 import type { Database } from './db/index.js'
 import { errorHandler, HttpError, notFoundHandler } from './errors.js'
-import { createOrder, orderSchema } from './orders.js'
+import {
+  applyPaymentStatus,
+  createOrder,
+  orderNumberSchema,
+  orderSchema,
+  orderStatus,
+} from './orders.js'
+import type { PaymentGateway } from './payments/midtrans.js'
 import {
   findProductBySlug,
   listCategories,
@@ -39,14 +46,41 @@ const productQuerySchema = z.object({
 
 const idempotencyKeySchema = z.string().min(8).max(100).optional()
 
+const notificationSchema = z.object({
+  order_id: z.string().min(1).max(60),
+  status_code: z.string().min(1).max(10),
+  gross_amount: z.string().min(1).max(30),
+  signature_key: z.string().min(1).max(256),
+  transaction_status: z.string().max(40).optional(),
+  fraud_status: z.string().max(40).optional(),
+  payment_type: z.string().max(60).optional(),
+})
+
+function limiter(perMinute: number) {
+  return rateLimit({
+    windowMs: 60_000,
+    limit: perMinute,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: {
+      error: { code: 'rate_limited', message: 'Terlalu banyak percobaan. Coba lagi sebentar.' },
+    },
+  })
+}
+
 export interface AppOptions {
   corsOrigins: string[]
+  /** Storefront URL that Midtrans returns shoppers to. */
+  siteUrl?: string
+  /** Null when Midtrans keys are missing. Orders are refused until it is set. */
+  payments?: PaymentGateway | null
   /** Orders allowed per IP address per minute. */
   ordersPerMinute?: number
 }
 
 export function createApp(db: Database, options: AppOptions) {
   const app = express()
+  const payments = options.payments ?? null
 
   app.use(helmet())
   app.use(cors({ origin: options.corsOrigins, allowedHeaders: ['Content-Type', 'Idempotency-Key'] }))
@@ -54,7 +88,7 @@ export function createApp(db: Database, options: AppOptions) {
 
   app.get('/health', (_req, res) => {
     db.prepare('SELECT 1').get()
-    res.json({ status: 'ok' })
+    res.json({ status: 'ok', payments: payments ? 'ready' : 'not_configured' })
   })
 
   app.get('/api/categories', (_req, res) => {
@@ -91,23 +125,46 @@ export function createApp(db: Database, options: AppOptions) {
     res.json({ items: relatedProducts(db, product, limit) })
   })
 
-  app.post(
-    '/api/orders',
-    rateLimit({
-      windowMs: 60_000,
-      limit: options.ordersPerMinute ?? 20,
-      standardHeaders: 'draft-8',
-      legacyHeaders: false,
-      message: {
-        error: { code: 'rate_limited', message: 'Terlalu banyak percobaan. Coba lagi sebentar.' },
-      },
-    }),
-    (req, res) => {
-      const input = orderSchema.parse(req.body)
-      const key = idempotencyKeySchema.parse(req.get('Idempotency-Key'))
-      res.status(201).json(createOrder(db, input, key))
-    },
-  )
+  app.post('/api/orders', limiter(options.ordersPerMinute ?? 20), async (req, res) => {
+    const input = orderSchema.parse(req.body)
+    const idempotencyKey = idempotencyKeySchema.parse(req.get('Idempotency-Key'))
+    if (!payments) {
+      throw new HttpError(503, 'payment_not_configured', 'Pembayaran belum disiapkan oleh toko.')
+    }
+    const result = await createOrder(db, payments, input, {
+      siteUrl: options.siteUrl ?? options.corsOrigins[0] ?? '',
+      idempotencyKey,
+    })
+    res.status(201).json(result)
+  })
+
+  // Returns status only, never customer data, because anyone with the number can ask.
+  app.get('/api/orders/:orderNumber', limiter(60), async (req, res) => {
+    const parsed = orderNumberSchema.safeParse(req.params.orderNumber)
+    const status = parsed.success ? await orderStatus(db, payments, parsed.data) : null
+    if (!status) throw new HttpError(404, 'not_found', 'Pesanan tidak ditemukan.')
+    res.set('Cache-Control', 'no-store').json(status)
+  })
+
+  app.post('/api/payments/midtrans/notification', async (req, res) => {
+    if (!payments) throw new HttpError(503, 'payment_not_configured', 'Pembayaran belum disiapkan.')
+    const notification = notificationSchema.parse(req.body)
+    if (!payments.verifySignature(notification)) {
+      throw new HttpError(403, 'invalid_signature', 'Tanda tangan notifikasi tidak valid.')
+    }
+
+    // The notification only says something changed. The status API is the source of truth.
+    const payment = (await payments.getStatus(notification.order_id)) ?? {
+      orderId: notification.order_id,
+      transactionStatus: notification.transaction_status ?? '',
+      fraudStatus: notification.fraud_status,
+      grossAmount: Number(notification.gross_amount),
+      paymentType: notification.payment_type,
+    }
+    const status = applyPaymentStatus(db, payment)
+    // Unknown orders are acknowledged, so Midtrans test pings do not retry forever.
+    res.json({ received: true, status: status ?? 'ignored' })
+  })
 
   app.use(notFoundHandler)
   app.use(errorHandler)

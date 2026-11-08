@@ -4,6 +4,17 @@ import type { AddressInfo } from 'node:net'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { createApp } from './app.js'
 import { openDatabase, type Database } from './db/index.js'
+import { createMidtransGateway, type PaymentGateway } from './payments/midtrans.js'
+
+/** Accepts every payment request, so these tests can focus on orders. */
+function testGateway(): PaymentGateway {
+  const real = createMidtransGateway({ serverKey: 'test', clientKey: 'test', isProduction: false })
+  return {
+    ...real,
+    createTransaction: async (request) => ({ token: request.orderId, redirectUrl: 'https://pay.test' }),
+    getStatus: async () => null,
+  }
+}
 
 // Response bodies vary per endpoint, and each test asserts the fields it needs.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,7 +67,7 @@ describe('API', () => {
   before(async () => {
     db = openDatabase(':memory:')
     await new Promise<void>((resolve) => {
-      server = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1000 }).listen(0, () =>
+      server = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1000, payments: testGateway() }).listen(0, () =>
         resolve(),
       )
     })
@@ -257,7 +268,7 @@ describe('API', () => {
     })
 
     it('limits repeated orders', async () => {
-      const limited = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1 })
+      const limited = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1, payments: testGateway() })
       const limitedServer = await new Promise<Server>((resolve) => {
         const instance = limited.listen(0, () => resolve(instance))
       })

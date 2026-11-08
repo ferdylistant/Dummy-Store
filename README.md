@@ -5,7 +5,7 @@ Toko online baju, celana, bandana, dan merchandise.
 - **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS
 - **Backend:** Express 5 di folder `server/`, dengan SQLite
 
-Data produk masih contoh, dan pembayaran belum aktif.
+Data produk masih contoh. Pembayaran memakai Midtrans Snap, mulai dari mode sandbox.
 
 ## Menjalankan project
 
@@ -57,9 +57,19 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 | GET | `/api/products/facets` | Pilihan ukuran dan warna |
 | GET | `/api/products/:slug` | Detail produk |
 | GET | `/api/products/:slug/related` | Produk terkait |
-| POST | `/api/orders` | Membuat pesanan |
+| POST | `/api/orders` | Membuat pesanan dan transaksi Midtrans |
+| GET | `/api/orders/:nomor` | Status pesanan, tanpa data pembeli |
+| POST | `/api/payments/midtrans/notification` | Notifikasi pembayaran dari Midtrans |
 
 `POST /api/orders` hanya menerima referensi produk. Harga, ongkir, dan stok selalu dihitung dari database.
+
+## Pembayaran Midtrans
+
+1. Salin  menjadi , lalu isi  dan  dari halaman Access Keys di dashboard Midtrans (mode Sandbox).
+2. Jalankan ulang . Log API menampilkan  jika kunci terbaca.
+3. Atur **Payment Notification URL** di dashboard Midtrans ke . Saat pengembangan lokal, pakai tunnel seperti ngrok.
+
+Tanpa notifikasi pun status tetap diperbarui, karena halaman status pesanan mengecek ke Midtrans selama pesanan belum dibayar. Pesanan yang tidak dibayar dalam 24 jam dibatalkan dan stoknya dikembalikan.
 
 ## Sebelum deploy
 
