@@ -64,6 +64,7 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 | GET | `/api/home` | Isi beranda: rel hero, kategori dengan produk sampul, unggulan, baru, dan diskon |
 | GET | `/api/media/:id` | Gambar yang diunggah dari dashboard |
 | * | `/api/admin/*` | Dashboard admin: ringkasan, produk, kategori, pesanan, pelanggan, pengaturan. Wajib akun admin |
+| POST | `/api/shipping/rates` | Pilihan pengiriman untuk keranjang dan desa tujuan, dihitung di server |
 | GET | `/api/config` | Fitur yang aktif: pembayaran, pencarian wilayah, login Google |
 | GET | `/api/regions/children?parent=` | Daftar provinsi, lalu kota/kabupaten, kecamatan, dan desa/kelurahan beserta kode posnya |
 | GET | `/api/regions?q=` | Cari area Biteship (cadangan untuk ongkir nanti) |
@@ -93,7 +94,7 @@ Semua kunci di bawah ini diisi di `server/.env`. Tanpa kunci, fitur tetap jalan 
 - **Email (Resend)**: isi `RESEND_API_KEY` dan `MAIL_FROM` dengan domain yang sudah diverifikasi di Resend. Tanpa kunci, email konfirmasi dan atur ulang password dicetak di log API, jadi tautannya bisa disalin dari sana.
 - **Login Google**: buat OAuth Client ID di Google Cloud Console, isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET`, dan daftarkan redirect URI `<API_URL>/api/auth/callback/google`. Tombol Google hanya muncul jika kunci ini diisi.
 - **Wilayah**: provinsi sampai desa/kelurahan dan kode posnya berasal dari data Kepmendagri 2025 di `server/resources/regions.tsv.gz` (lisensi MIT, lihat `REGIONS-LICENSE.md`). Data dimuat otomatis ke database dan tidak butuh kunci apa pun. Untuk memperbarui data, jalankan `npm run regions:build -w server`. Alamat dan pesanan hanya menyimpan kode desa, lalu server mengisi nama wilayah dan kode pos dari data itu.
-- **Biteship**: `BITESHIP_API_KEY` disiapkan untuk menghitung ongkir dan melacak pengiriman.
+- **Ongkir (Biteship)**: isi `BITESHIP_API_KEY`, lalu isi alamat toko di dashboard (Pengaturan, Alamat toko). Checkout lalu menampilkan tarif tiap kurir dari kode pos desa toko ke kode pos desa pembeli, dengan berat dari tiap produk. Kurir yang ditanya bisa diatur dengan `BITESHIP_COURIERS` dan harus aktif di akun Biteship. Saat belanja mencapai minimum gratis ongkir, kurir termurah menjadi gratis. Selama kunci atau alamat toko belum diisi, atau Biteship sedang gagal, checkout memakai tarif tetap Reguler dan Ekspres dari dashboard. Saat pesanan dibuat, server menghitung ulang ongkir dan menolak pilihan yang tidak ditawarkan.
 - **BETTER_AUTH_SECRET**: wajib di production, minimal 32 karakter acak. Saat pengembangan, rahasia dibuat otomatis di `server/data/.auth-secret`.
 
 Aturan akses dijaga di `src/proxy.ts` (dari cookie sesi) dan diperiksa lagi di setiap halaman:

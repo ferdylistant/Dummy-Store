@@ -7,6 +7,7 @@ import { createMailer } from './mail.js'
 import { expireOverdueOrders } from './orders.js'
 import { createMidtransGateway } from './payments/midtrans.js'
 import { createBiteshipRegions } from './regions.js'
+import { createBiteshipRates } from './shipping.js'
 import { storeRevalidator } from './revalidate.js'
 
 const SWEEP_MS = 5 * 60_000
@@ -43,6 +44,8 @@ if (imported) console.log('Data lama dari data/store.db dipindahkan ke PostgreSQ
 
 if (!config.mail.resendApiKey) console.warn('RESEND_API_KEY belum diisi. Email ditampilkan di log ini.')
 const regions = config.biteship.apiKey ? createBiteshipRegions(config.biteship.apiKey) : null
+const shippingRates = config.biteship.apiKey ? createBiteshipRates(config.biteship.apiKey, config.biteship.couriers) : null
+if (!shippingRates) console.warn('BITESHIP_API_KEY belum diisi. Ongkir memakai tarif tetap dari dashboard.')
 
 const app = createApp(db, {
   corsOrigins: config.corsOrigins,
@@ -50,6 +53,7 @@ const app = createApp(db, {
   payments,
   auth,
   regions,
+  shippingRates,
   google: Boolean(google),
   trustProxy: config.trustProxy,
   publicUrl: config.apiUrl,

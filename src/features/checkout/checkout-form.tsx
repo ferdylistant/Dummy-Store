@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, ChevronDown, Clock, ShieldCheck, ShoppingBag } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Clock, MapPin, RotateCw, ShieldCheck, ShoppingBag } from 'lucide-react'
 import { m } from 'motion/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -18,8 +18,7 @@ import { useCartLines, type CartLine } from '@/features/cart/use-cart-lines'
 import { authClient } from '@/lib/auth-client'
 import { formatRupiah } from '@/lib/format'
 import { PAYMENT_GROUPS } from '@/lib/payment-methods'
-import { shippingCost, SHIPPING_OPTIONS } from '@/lib/pricing'
-import { useStoreSettings } from '@/features/store/store-settings'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { getAddresses, type Address } from '@/services/account'
 import { ApiError } from '@/services/api'
@@ -27,6 +26,7 @@ import { createOrder } from '@/services/orders'
 import { CheckoutSkeleton } from './checkout-skeleton'
 import { CheckoutSteps } from './checkout-steps'
 import { checkoutSchema, type CheckoutValues } from './schema'
+import { useShippingQuote } from './use-shipping-quote'
 import { loadSnap, openSnap } from './snap'
 
 const STEPS = [
@@ -73,7 +73,7 @@ function OptionCard({
 }: {
   label: string
   hint: string
-  aside?: string
+  aside?: ReactNode
   checked: boolean
   input: ReactNode
 }) {
@@ -166,7 +166,7 @@ export function CheckoutForm() {
   } = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     mode: 'onTouched',
-    defaultValues: { shippingMethod: 'reguler', ...EMPTY_REGION },
+    defaultValues: { shippingMethod: '', ...EMPTY_REGION },
   })
 
   const userId = session?.user.id
@@ -201,9 +201,20 @@ export function CheckoutForm() {
   const newAddress = addressChoice === NEW_ADDRESS
 
   const values = useWatch({ control })
-  const shippingMethod = values.shippingMethod ?? 'reguler'
-  const store = useStoreSettings()
-  const shipping = shippingCost(subtotal, shippingMethod, store)
+  const shippingMethod = values.shippingMethod ?? ''
+  const shippingQuote = useShippingQuote(values.regionCode, items)
+  const shippingOptions = shippingQuote.quote?.options
+  const chosenShipping = shippingOptions?.find((option) => option.id === shippingMethod)
+  const shipping = chosenShipping?.price
+
+  // A new address or cart brings new choices. Keep the pick if it is still offered,
+  // otherwise start from the cheapest.
+  useEffect(() => {
+    if (!shippingOptions?.length) return
+    if (!shippingOptions.some((option) => option.id === getValues('shippingMethod'))) {
+      setValue('shippingMethod', shippingOptions[0].id, { shouldDirty: true })
+    }
+  }, [shippingOptions, getValues, setValue])
 
   // The browser back button moves between steps instead of leaving the form.
   useEffect(() => {
@@ -256,6 +267,12 @@ export function CheckoutForm() {
       else if (outcome === 'close') setUnfinished(true)
       else setSubmitError('Pembayaran gagal diproses. Coba lagi atau pilih metode lain.')
     } catch (error) {
+      if (error instanceof ApiError && error.code === 'shipping_changed') {
+        shippingQuote.refresh()
+        goTo(1)
+        setSubmitError(error.message)
+        return
+      }
       setSubmitError(
         error instanceof ApiError
           ? error.message
@@ -279,7 +296,12 @@ export function CheckoutForm() {
       return
     }
     const valid = await trigger([...STEPS[step].fields], { shouldFocus: true })
-    if (valid) goTo(step + 1)
+    if (!valid) return
+    if (step === 1 && !chosenShipping) {
+      setSubmitError(shippingQuote.loading ? 'Ongkir masih dihitung. Tunggu sebentar.' : 'Pilih pengiriman dulu.')
+      return
+    }
+    goTo(step + 1)
   }
 
   if (isLoading) return <CheckoutSkeleton />
@@ -314,7 +336,7 @@ export function CheckoutForm() {
           <summary className="flex min-h-7 items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">
             <span>Ringkasan pesanan</span>
             <span className="flex items-center gap-2 tabular-nums">
-              {formatRupiah(subtotal + shipping)}
+              {formatRupiah(subtotal + (shipping ?? 0))}
               <ChevronDown
                 aria-hidden="true"
                 className="size-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
@@ -481,29 +503,85 @@ export function CheckoutForm() {
             )}
 
             {step === 1 && (
-              <fieldset className="grid gap-3">
+              <fieldset className="grid gap-3" aria-busy={shippingQuote.loading}>
                 <legend className="sr-only">Metode pengiriman</legend>
-                {(Object.keys(SHIPPING_OPTIONS) as (keyof typeof SHIPPING_OPTIONS)[]).map(
-                  (method) => {
-                    const cost = shippingCost(subtotal, method, store)
-                    return (
+                <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    Ke {values.village}, {values.district}, {values.city} {values.postalCode}
+                    {shippingQuote.quote?.origin && <> dari {shippingQuote.quote.origin}</>}
+                    {shippingQuote.quote && shippingQuote.quote.weightGrams > 0 && (
+                      <>
+                        , berat sekitar{' '}
+                        {(shippingQuote.quote.weightGrams / 1000).toLocaleString('id-ID', {
+                          maximumFractionDigits: 1,
+                        })}{' '}
+                        kg
+                      </>
+                    )}
+                  </span>
+                </p>
+                {shippingQuote.loading ? (
+                  <div role="status" aria-label="Menghitung ongkir" className="grid gap-3">
+                    {[0, 1, 2].map((item) => (
+                      <Skeleton key={item} className="h-16 rounded-xl" />
+                    ))}
+                  </div>
+                ) : shippingQuote.failed || !shippingQuote.quote ? (
+                  <div
+                    role="alert"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted p-4 text-sm"
+                  >
+                    Ongkir gagal dihitung. Periksa koneksi, lalu coba lagi.
+                    <Button variant="outline" onClick={shippingQuote.refresh}>
+                      <RotateCw aria-hidden="true" className="size-4" />
+                      Coba Lagi
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {shippingQuote.quote.options.map((option) => (
                       <OptionCard
-                        key={method}
-                        label={SHIPPING_OPTIONS[method].label}
-                        hint={SHIPPING_OPTIONS[method].eta}
-                        aside={cost === 0 ? 'Gratis' : formatRupiah(cost)}
-                        checked={shippingMethod === method}
+                        key={option.id}
+                        label={option.label}
+                        hint={
+                          [option.etd, option.courier ? option.description : '']
+                            .filter(Boolean)
+                            .join(' · ') || 'Estimasi tiba mengikuti kurir'
+                        }
+                        aside={
+                          option.free ? (
+                            <span className="block text-right">
+                              <span className="block text-success">Gratis</span>
+                              <span className="block text-xs text-muted-foreground line-through">
+                                {formatRupiah(option.originalPrice)}
+                              </span>
+                            </span>
+                          ) : (
+                            formatRupiah(option.price)
+                          )
+                        }
+                        checked={shippingMethod === option.id}
                         input={
                           <input
                             type="radio"
-                            value={method}
+                            value={option.id}
                             className="size-5 accent-primary"
                             {...register('shippingMethod')}
                           />
                         }
                       />
-                    )
-                  },
+                    ))}
+                    <p className="text-sm text-muted-foreground">
+                      {shippingQuote.quote.mode === 'live'
+                        ? shippingQuote.quote.options.some((option) => option.free)
+                          ? 'Gratis ongkir berlaku untuk kurir termurah.'
+                          : `Kurir termurah gratis untuk belanja mulai ${formatRupiah(shippingQuote.quote.freeShippingMin)}.`
+                        : shippingQuote.quote.reason === 'unavailable'
+                          ? 'Tarif kurir sedang tidak bisa dimuat, jadi dipakai tarif tetap toko.'
+                          : `Reguler gratis untuk belanja mulai ${formatRupiah(shippingQuote.quote.freeShippingMin)}.`}
+                    </p>
+                  </>
                 )}
               </fieldset>
             )}
@@ -582,8 +660,9 @@ export function CheckoutForm() {
                       {values.province} {values.postalCode}
                     </ReviewRow>
                     <ReviewRow title="Metode pengiriman" onEdit={() => goTo(1)}>
-                      {SHIPPING_OPTIONS[shippingMethod].label},{' '}
-                      {SHIPPING_OPTIONS[shippingMethod].eta}
+                      {chosenShipping
+                        ? [chosenShipping.label, chosenShipping.etd].filter(Boolean).join(', ')
+                        : 'Belum dipilih'}
                     </ReviewRow>
                   </div>
                 </section>

@@ -60,7 +60,8 @@ export interface OrderHistoryItem {
   status: 'awaiting_payment' | 'paid' | 'expired' | 'cancelled' | 'refunded'
   total: number
   createdAt: string
-  shippingMethod: 'reguler' | 'ekspres'
+  /** "reguler", "ekspres", or a courier service such as "JNE REG". */
+  shippingMethod: string
   items: { productId: string; name: string; color: string; size: string; quantity: number; lineTotal: number }[]
 }
 

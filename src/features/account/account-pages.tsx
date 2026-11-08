@@ -202,7 +202,7 @@ export function OrderHistory() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-6">
                   <p className="text-sm text-muted-foreground">
-                    {SHIPPING_OPTIONS[order.shippingMethod]?.label ?? 'Reguler'} · Total{' '}
+                    {SHIPPING_OPTIONS[order.shippingMethod as keyof typeof SHIPPING_OPTIONS]?.label ?? order.shippingMethod} · Total{' '}
                     <span className="text-base font-semibold text-foreground tabular-nums">{formatRupiah(order.total)}</span>
                   </p>
                   <Link

@@ -77,6 +77,8 @@ export const config = {
   },
   biteship: {
     apiKey: process.env.BITESHIP_API_KEY?.trim() ?? '',
+    /** Courier codes asked for rates, comma separated. Each must be active in Biteship. */
+    couriers: process.env.BITESHIP_COURIERS?.trim() || undefined,
   },
   midtrans: {
     serverKey: process.env.MIDTRANS_SERVER_KEY?.trim() ?? '',

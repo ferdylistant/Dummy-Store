@@ -18,7 +18,8 @@ export const checkoutSchema = z.object({
   village: z.string(),
   postalCode: z.string(),
   notes: z.string().trim().max(200, 'Catatan maksimal 200 karakter.').optional(),
-  shippingMethod: z.enum(['reguler', 'ekspres']),
+  /** "reguler" and "ekspres" are the flat rates. Courier rates look like "jne:reg". */
+  shippingMethod: z.string().min(1, 'Pilih pengiriman.'),
   paymentMethod: z.enum(PAYMENT_VALUES, { error: 'Pilih metode pembayaran.' }),
 })
 

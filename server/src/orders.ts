@@ -9,8 +9,7 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from './payments/midtrans.js'
-import { shippingCost } from './pricing.js'
-import { getSettings } from './settings.js'
+import { chosenShipping, type RateProvider, type ShippingOption } from './shipping.js'
 import { regionCodeSchema, type ResolvedVillage } from './regions.js'
 
 const MAX_QUANTITY = 10
@@ -48,7 +47,8 @@ export const orderSchema = z.object({
     /** Village code. The order's region names and postal code come from it. */
     regionCode: regionCodeSchema,
     notes: z.string().trim().max(200).optional(),
-    shippingMethod: z.enum(['reguler', 'ekspres']),
+    /** "reguler" or "ekspres" with flat rates, or a courier rate such as "jne:reg". */
+    shippingMethod: z.string().regex(/^[a-z0-9_-]+(:[a-z0-9_-]+)?$/, 'Pilih pengiriman.').max(60),
     paymentMethod: z.enum(PAYMENT_METHODS),
   }),
   /** Signed in shoppers can keep the address for next time. */
@@ -142,6 +142,7 @@ function reserveOrder(
   db: Database,
   input: OrderInput,
   region: ResolvedVillage,
+  delivery: { option: ShippingOption; freeShippingMin: number },
   idempotencyKey?: string,
   userId?: string,
 ) {
@@ -191,7 +192,9 @@ function reserveOrder(
     }
 
     const subtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
-    const shipping = shippingCost(subtotal, input.customer.shippingMethod, await getSettings(trx, 'store'))
+    // Free shipping was decided on the quote. If prices moved below the minimum since, the courier price applies.
+    const { option } = delivery
+    const shipping = option.free && subtotal < delivery.freeShippingMin ? option.originalPrice : option.price
     const total = subtotal + shipping
     const orderNumber = newOrderNumber()
     const expiresAt = new Date(Date.now() + paymentExpiryMinutes(input.customer.paymentMethod) * 60_000)
@@ -215,7 +218,9 @@ function reserveOrder(
         village: region.village,
         region_code: region.regionCode,
         notes: customer.notes || null,
-        shipping_method: customer.shippingMethod,
+        // Flat rates keep their key. Courier rates are saved by name, since the id means nothing later.
+        shipping_method: option.courier ? option.label : option.id,
+        courier: option.courier,
         payment_method: customer.paymentMethod,
         subtotal,
         shipping_cost: shipping,
@@ -281,7 +286,13 @@ export async function createOrder(
   db: Database,
   gateway: PaymentGateway,
   input: OrderInput,
-  options: { siteUrl: string; idempotencyKey?: string; userId?: string; region: ResolvedVillage },
+  options: {
+    siteUrl: string
+    idempotencyKey?: string
+    userId?: string
+    region: ResolvedVillage
+    shippingRates?: RateProvider | null
+  },
 ): Promise<OrderResult> {
   if (options.idempotencyKey) {
     const previous = await findOrder(db, 'idempotency_key', options.idempotencyKey)
@@ -289,7 +300,22 @@ export async function createOrder(
   }
 
   const { region } = options
-  const order = await reserveOrder(db, input, region, options.idempotencyKey, options.userId)
+  // Priced before the transaction, so a slow courier API never holds stock locks.
+  const { quote, option } = await chosenShipping(
+    db,
+    options.shippingRates,
+    input.customer.regionCode,
+    mergeItems(input.items),
+    input.customer.shippingMethod,
+  )
+  const order = await reserveOrder(
+    db,
+    input,
+    region,
+    { option, freeShippingMin: quote.freeShippingMin },
+    options.idempotencyKey,
+    options.userId,
+  )
   const { customer } = input
 
   try {

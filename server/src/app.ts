@@ -20,7 +20,8 @@ import {
   orderStatus,
 } from './orders.js'
 import type { PaymentGateway } from './payments/midtrans.js'
-import { regionChildren, type RegionProvider } from './regions.js'
+import { regionChildren, regionCodeSchema, type RegionProvider } from './regions.js'
+import { quoteShipping, shippingItemsSchema, type RateProvider } from './shipping.js'
 import {
   findProductBySlug,
   homeContent,
@@ -98,6 +99,8 @@ export interface AppOptions {
   publicUrl?: string
   /** Called after the dashboard changes something the store shows. */
   onStoreChange?: () => void
+  /** Courier rates. Null or missing means the store's flat rates. */
+  shippingRates?: RateProvider | null
 }
 
 export function createApp(db: Database, options: AppOptions) {
@@ -224,6 +227,7 @@ export function createApp(db: Database, options: AppOptions) {
       idempotencyKey,
       userId: user?.id,
       region: await requireVillage(db, input.customer.regionCode),
+      shippingRates: options.shippingRates,
     })
     if (user && input.saveAddress) {
       const { customer } = input
@@ -236,6 +240,13 @@ export function createApp(db: Database, options: AppOptions) {
       })
     }
     res.status(201).json(result)
+  })
+
+  // Shipping choices for the cart and the chosen village, priced on the server.
+  app.post('/api/shipping/rates', limiter(30), async (req, res) => {
+    const { regionCode, items } = z.object({ regionCode: regionCodeSchema, items: shippingItemsSchema }).parse(req.body)
+    res.set('Cache-Control', 'no-store')
+    res.json(await quoteShipping(db, options.shippingRates, regionCode, items))
   })
 
   // Returns status only, never customer data, because anyone with the number can ask.
