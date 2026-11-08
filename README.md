@@ -65,9 +65,9 @@ Baca `design-system/dummy-store/MASTER.md` sebelum menulis UI. Token kodenya ada
 
 ## Pembayaran Midtrans
 
-1. Salin  menjadi , lalu isi  dan  dari halaman Access Keys di dashboard Midtrans (mode Sandbox).
-2. Jalankan ulang . Log API menampilkan  jika kunci terbaca.
-3. Atur **Payment Notification URL** di dashboard Midtrans ke . Saat pengembangan lokal, pakai tunnel seperti ngrok.
+1. Salin `server/.env.example` menjadi `server/.env`, lalu isi `MIDTRANS_SERVER_KEY` dan `MIDTRANS_CLIENT_KEY` dari halaman Access Keys di dashboard Midtrans (mode Sandbox).
+2. Jalankan ulang `npm run dev`. Log API menampilkan `Midtrans sandbox` jika kunci terbaca.
+3. Atur **Payment Notification URL** di dashboard Midtrans ke `https://<alamat-publik>/api/payments/midtrans/notification`. Saat pengembangan lokal, pakai tunnel seperti ngrok.
 
 Tanpa notifikasi pun status tetap diperbarui, karena halaman status pesanan mengecek ke Midtrans selama pesanan belum dibayar. Pesanan yang tidak dibayar dalam 24 jam dibatalkan dan stoknya dikembalikan.
 
