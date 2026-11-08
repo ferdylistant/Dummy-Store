@@ -73,23 +73,24 @@ export function AddedNotice({ item, onClose }: { item: AddedItem | null; onClose
   const openCart = useCart((state) => state.openCart)
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{ top: item?.top ?? 56 }}
-      className="pointer-events-none fixed inset-x-4 z-40 flex justify-center sm:inset-x-auto sm:right-6 lg:right-8"
-    >
+    // A zero-height layer. Each tag carries its own position, so one that is
+    // leaving stays where it was instead of jumping when the item clears.
+    <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 top-0 z-40 h-0">
       <AnimatePresence>
         {item && (
           <m.div
             key={item.id}
-            style={{ transformOrigin: '50% 0' }}
+            style={{ top: item.top, transformOrigin: '50% 0' }}
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: -24, rotate: 9 }}
             animate={{ opacity: 1, y: 0, rotate: 0 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, y: -16, transition: { duration: 0.15 } }}
+            exit={{
+              opacity: 0,
+              y: reduced ? 0 : -12,
+              transition: { type: 'tween', duration: 0.18, ease: 'easeIn' },
+            }}
             // A spring on opacity overshoots and pulses, so only the swing is springy.
             transition={{ default: { type: 'spring', stiffness: 170, damping: 12 }, opacity: { duration: 0.15 } }}
-            className="pointer-events-auto flex w-full max-w-sm flex-col items-center"
+            className="pointer-events-auto absolute inset-x-4 mx-auto flex max-w-sm flex-col items-center sm:right-6 sm:left-auto sm:mx-0 sm:w-96 lg:right-8"
           >
             <span aria-hidden="true" className="block h-4 w-px bg-input" />
             <m.div
