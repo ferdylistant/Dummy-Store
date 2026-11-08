@@ -1,7 +1,8 @@
 'use client'
 
 import { ArrowRight } from 'lucide-react'
-import { m, useReducedMotion } from 'motion/react'
+import { m } from 'motion/react'
+import { useCalmMotion } from '@/lib/use-calm-motion'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
@@ -10,14 +11,18 @@ import type { ReactNode } from 'react'
  * around the punched hole, like the pieces hanging on the home page rail.
  */
 export function HangTagLink({ href, children }: { href: string; children: ReactNode }) {
-  const reduced = useReducedMotion()
+  const calm = useCalmMotion()
 
   return (
     <m.span
       className="relative inline-block"
       style={{ transformOrigin: '20px 50%' }}
-      whileHover={reduced ? undefined : { rotate: -5 }}
-      whileTap={reduced ? undefined : { rotate: 3 }}
+      // The tap gesture makes Motion add tabindex="0", which would put this wrapper in
+      // the tab order next to its link, so it is taken out explicitly.
+      tabIndex={-1}
+      // useCalmMotion matches the server on the first render, so hydration agrees.
+      whileHover={calm ? undefined : { rotate: -5 }}
+      whileTap={calm ? undefined : { rotate: 3 }}
       transition={{ type: 'spring', stiffness: 240, damping: 8 }}
     >
       <Link

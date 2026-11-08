@@ -66,6 +66,8 @@ export function SessionList() {
     const { error: failure } = await authClient.revokeSession({ token: row.token })
     setBusy(null)
     if (failure) return setError('Perangkat gagal dikeluarkan. Coba lagi.')
+    // Drop the row now, so it never shows next to its own confirmation.
+    setSessions((list) => list?.filter((item) => item.token !== row.token) ?? null)
     setError('')
     setMessage(`${describeDevice(row.userAgent).name} sudah dikeluarkan.`)
     load()
@@ -77,6 +79,7 @@ export function SessionList() {
     const { error: failure } = await authClient.revokeOtherSessions()
     setBusy(null)
     if (failure) return setError('Perangkat lain gagal dikeluarkan. Coba lagi.')
+    setSessions((list) => list?.filter((item) => item.token === currentToken) ?? null)
     setError('')
     setMessage('Semua perangkat lain sudah dikeluarkan.')
     load()

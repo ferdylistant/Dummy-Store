@@ -1,7 +1,7 @@
 'use client'
 
 import { MapPin, Package, Zap } from 'lucide-react'
-import { m, useReducedMotion } from 'motion/react'
+import { m } from 'motion/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
@@ -29,7 +29,6 @@ const TAG_LABEL: Record<AuthMode, string> = {
 
 /** The membership card: a large paper garment tag hanging from the rail. */
 function MemberTag({ mode, name }: { mode: AuthMode; name: string }) {
-  const reduced = useReducedMotion()
   const shown = name.trim()
 
   return (
@@ -41,7 +40,9 @@ function MemberTag({ mode, name }: { mode: AuthMode; name: string }) {
       </svg>
       <m.div
         style={{ transformOrigin: '50% 0' }}
-        initial={reduced ? false : { rotate: -7 }}
+        // Not tied to useReducedMotion, which is unknown on the server. MotionConfig
+        // settles the tag at once for visitors who ask for less motion.
+        initial={{ rotate: -7 }}
         animate={{ rotate: 0 }}
         transition={{ type: 'spring', stiffness: 60, damping: 6, mass: 1.2 }}
         className="relative -mt-1 w-64 rounded-b-2xl bg-background px-6 pt-10 pb-6 [clip-path:polygon(28px_0,calc(100%_-_28px)_0,100%_28px,100%_100%,0_100%,0_28px)] lg:w-80 lg:px-8 lg:pt-12 lg:pb-8"
