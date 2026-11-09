@@ -5,6 +5,7 @@ import { footerNavigation, type NavItem } from '@/lib/site'
 import type { StoreSettings } from '@/services/store'
 import { Logo } from './logo'
 import { RailTagLink } from './rail-tag-link'
+import { SocialLinks } from './social-links'
 
 export function SiteFooter({ store, navigation }: { store: StoreSettings; navigation: NavItem[] }) {
   const categoryLinks = navigation.filter((item) => item.href.startsWith('/kategori/'))
@@ -44,6 +45,7 @@ export function SiteFooter({ store, navigation }: { store: StoreSettings; naviga
           <a href={`mailto:${store.email}`} className="mt-2 inline-block py-1 text-sm">
             <span className="link-stitch">{store.email}</span>
           </a>
+          <SocialLinks phone={store.phone} storeName={store.name} className="mt-4" />
         </div>
         {footerNavigation
           .filter((group) => group.title !== 'Belanja')
@@ -74,7 +76,7 @@ export function SiteFooter({ store, navigation }: { store: StoreSettings; naviga
 
       <p
         aria-hidden="true"
-        className="mt-6 -mb-[0.2em] text-center text-[15vw] leading-none font-semibold tracking-tighter whitespace-nowrap text-border select-none"
+        className="mt-6 -mb-[0.2em] text-center text-[15vw] leading-none font-semibold tracking-tighter whitespace-nowrap text-zinc-600 select-none"
       >
         {store.name}
       </p>
