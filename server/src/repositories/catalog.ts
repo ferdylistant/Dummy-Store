@@ -83,6 +83,7 @@ function toProduct(
     railImage: row.rail_media_id ? mediaUrl(row.rail_media_id) : undefined,
     railBackImage: row.rail_media_id && row.rail_back_media_id ? mediaUrl(row.rail_back_media_id) : undefined,
     railSideImage: row.rail_media_id && row.rail_side_media_id ? mediaUrl(row.rail_side_media_id) : undefined,
+    railHasHanger: (Boolean(row.rail_media_id) && row.rail_has_hanger) || undefined,
     weightGrams: row.weight_grams,
   }
 }

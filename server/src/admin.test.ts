@@ -201,7 +201,7 @@ describe('admin', () => {
     const [front, back, side] = await Promise.all(
       ['#aa0000', '#00aa00', '#0000aa'].map(async (color) => (await admin('/api/admin/media', { raw: await png(color, 400, 620) })).body.id),
     )
-    const input = await product({ railKind: 'tee', railMediaId: front, railBackMediaId: back, railSideMediaId: side })
+    const input = await product({ railKind: 'tee', railMediaId: front, railBackMediaId: back, railSideMediaId: side, railHasHanger: true })
     const created = await admin('/api/admin/products', { body: input })
     assert.equal(created.status, 201)
 
@@ -209,6 +209,7 @@ describe('admin', () => {
     assert.ok(shown.railImage.endsWith(front))
     assert.ok(shown.railBackImage.endsWith(back))
     assert.ok(shown.railSideImage.endsWith(side))
+    assert.equal(shown.railHasHanger, true, 'photos taken on a hanger tell the rail to draw none')
     const detail = (await admin(`/api/admin/products/${created.body.id}`)).body
     assert.deepEqual([detail.railMediaId, detail.railBackMediaId, detail.railSideMediaId], [front, back, side])
 
@@ -218,6 +219,7 @@ describe('admin', () => {
     assert.deepEqual([cleared.railMediaId, cleared.railBackMediaId, cleared.railSideMediaId], [null, null, null])
     const store = (await call(`/api/products/${input.slug}`)).body
     assert.equal(store.railBackImage, undefined)
+    assert.equal(store.railHasHanger, undefined, 'no photo, so the drawn hanger is back')
   })
 
   it('explains invalid products', async () => {

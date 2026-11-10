@@ -70,6 +70,8 @@ export default async function HomePage() {
     image: product.railImage ? mediaSrc(product.railImage) : undefined,
     backImage: product.railBackImage ? mediaSrc(product.railBackImage) : undefined,
     sideImage: product.railSideImage ? mediaSrc(product.railSideImage) : undefined,
+    // Photos taken on a real hanger hang by their own hook, like the 21st demo.
+    hanger: product.railHasHanger ? ('none' as const) : undefined,
     tag: formatRupiahShort(product.price),
     details: product.details.slice(0, 3),
   }))

@@ -23,6 +23,8 @@ export interface RailGarment {
   backImage?: string;
   /** Side-on photo shown while the piece rests on the rail; omit to show the front photo turned away. */
   sideImage?: string;
+  /** Hanger for this piece. "none" when its photos already show a hanger with the hook at the top. Falls back to the rail's hanger. */
+  hanger?: "wood" | "matte" | "none";
   /** Short hang-tag text such as a price or a size. */
   tag?: string;
   /** Short facts listed in the detail view. */
@@ -984,11 +986,12 @@ export function ClothingRailHero({
 
         {items.map((item, i) => {
           const kind = item.kind ?? "tee";
+          const itemHanger = item.hanger ?? hanger;
           const color = item.color ?? "var(--color-muted-foreground)";
           const trim = item.trim ?? mix(color, -0.12);
           const turned = active === i;
           const mask = item.image ? `url("${item.image}")` : silhouetteMask(kind, "front");
-          const photoBox = hanger === "none" ? "inset-0" : "inset-x-0 bottom-0 top-[8%]";
+          const photoBox = itemHanger === "none" ? "inset-0" : "inset-x-0 bottom-0 top-[8%]";
           return (
             <button
               key={item.id}
@@ -1011,17 +1014,17 @@ export function ClothingRailHero({
                 </span>
                 {(item.sideImage || !item.image) && (
                   <span ref={(node) => { sides.current[i] = node; }} data-face="side" className="absolute inset-0" style={{ transform: `perspective(${PERSPECTIVE}px) rotateY(0deg)` }}>
-                    <SideHanger uid={uid} material={hanger} />
-                    {item.sideImage ? <Photo src={item.sideImage} alt="" full={hanger === "none"} /> : <SideArt uid={uid} kind={kind} color={color} trim={trim} />}
+                    <SideHanger uid={uid} material={itemHanger} />
+                    {item.sideImage ? <Photo src={item.sideImage} alt="" full={itemHanger === "none"} /> : <SideArt uid={uid} kind={kind} color={color} trim={trim} />}
                   </span>
                 )}
                 <span ref={(node) => { turns.current[i] = node; }} data-turn className="absolute inset-0 rounded-lg [transform-style:preserve-3d]" style={{ transform: `perspective(${PERSPECTIVE}px) rotateY(${REST}deg)`, opacity: item.image && !item.sideImage ? 1 : 0 }}>
                   {(["front", "back"] as const).map((side) => (
                     <span key={side} data-face={side} className="absolute inset-0 [backface-visibility:hidden]" style={{ transform: side === "back" ? "rotateY(180deg)" : undefined, ["--garment-color" as string]: color, ["--garment-under" as string]: mix(color, -0.42) }}>
-                      <Hanger uid={uid} side={side} kind={item.image ? null : kind} material={hanger} />
+                      <Hanger uid={uid} side={side} kind={item.image ? null : kind} material={itemHanger} />
                       <span ref={side === "front" ? (node) => { drapes.current[i] = node; } : undefined} data-drape className="absolute inset-0 origin-top [transform:skewX(var(--drape,0deg))]" style={side === "back" ? { transform: "skewX(calc(var(--drape, 0deg) * -1))" } : undefined}>
                         {item.image
-                          ? <Photo src={(side === "back" ? item.backImage : undefined) ?? item.image} alt="" full={hanger === "none"} />
+                          ? <Photo src={(side === "back" ? item.backImage : undefined) ?? item.image} alt="" full={itemHanger === "none"} />
                           : <Fabric uid={uid} kind={kind} side={side} color={color} trim={trim} />}
                         <span ref={side === "front" ? (node) => { shades.current[i] = node; } : undefined} className={`pointer-events-none absolute bg-black ${item.image ? photoBox : "inset-0"}`} style={{ opacity: "var(--shade, 0.2)", WebkitMask: `${item.image ? `url("${(side === "back" ? item.backImage : undefined) ?? item.image}")` : silhouetteMask(kind, side)} top center / contain no-repeat`, mask: `${item.image ? `url("${(side === "back" ? item.backImage : undefined) ?? item.image}")` : silhouetteMask(kind, side)} top center / contain no-repeat` }} />
                       </span>
@@ -1067,7 +1070,7 @@ export function ClothingRailHero({
           item={items[openIndex]}
           index={openIndex}
           total={count}
-          hanger={hanger}
+          hanger={items[openIndex].hanger ?? hanger}
           labels={labels}
           reduced={reduced}
           action={detailAction?.(items[openIndex])}

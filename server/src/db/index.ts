@@ -49,6 +49,8 @@ export interface Schema {
     rail_back_media_id: string | null
     /** Side-on cut-out, shown while the piece rests on the rail. */
     rail_side_media_id: string | null
+    /** The rail photos already show a hanger, so the rail draws none. */
+    rail_has_hanger: Generated<boolean>
     created_at: Timestamp
     updated_at: Timestamp
   }
@@ -329,6 +331,11 @@ const MIGRATIONS: Record<string, Migration> = {
       await sql`ALTER TABLE products
         ADD COLUMN rail_back_media_id text REFERENCES media (id),
         ADD COLUMN rail_side_media_id text REFERENCES media (id)`.execute(db)
+    },
+  },
+  '005_rail_hanger': {
+    async up(db) {
+      await sql`ALTER TABLE products ADD COLUMN rail_has_hanger boolean NOT NULL DEFAULT false`.execute(db)
     },
   },
 }

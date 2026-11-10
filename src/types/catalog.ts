@@ -67,6 +67,8 @@ export interface Product {
   railBackImage?: string
   /** Side-on rail cut-out, shown while the piece rests on the rail. */
   railSideImage?: string
+  /** The rail photos already show a hanger. */
+  railHasHanger?: boolean
   weightGrams: number
 }
 

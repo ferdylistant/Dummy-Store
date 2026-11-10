@@ -71,6 +71,8 @@ export const productInputSchema = z
     railMediaId: mediaId.nullable(),
     railBackMediaId: mediaId.nullable().default(null),
     railSideMediaId: mediaId.nullable().default(null),
+    /** The rail photos include their own hanger. */
+    railHasHanger: z.boolean().default(false),
   })
   .refine((input) => input.compareAtPrice === null || input.compareAtPrice > input.price, {
     path: ['compareAtPrice'],
@@ -135,6 +137,7 @@ export async function saveProduct(db: Database, input: ProductInput, id?: string
         // The back and side only make sense with a front.
         rail_back_media_id: input.railMediaId ? input.railBackMediaId : null,
         rail_side_media_id: input.railMediaId ? input.railSideMediaId : null,
+        rail_has_hanger: Boolean(input.railMediaId) && input.railHasHanger,
         updated_at: new Date(),
       }
       if (id) {
