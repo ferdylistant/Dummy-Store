@@ -69,6 +69,8 @@ export const productInputSchema = z
     railKind: z.enum(RAIL_KINDS).nullable(),
     images: z.array(z.object({ mediaId, alt: z.string().trim().max(160) })).max(10, 'Maksimal 10 gambar.'),
     railMediaId: mediaId.nullable(),
+    railBackMediaId: mediaId.nullable().default(null),
+    railSideMediaId: mediaId.nullable().default(null),
   })
   .refine((input) => input.compareAtPrice === null || input.compareAtPrice > input.price, {
     path: ['compareAtPrice'],
@@ -130,6 +132,9 @@ export async function saveProduct(db: Database, input: ProductInput, id?: string
         is_active: input.isActive,
         weight_grams: input.weightGrams,
         rail_media_id: input.railMediaId,
+        // The back and side only make sense with a front.
+        rail_back_media_id: input.railMediaId ? input.railBackMediaId : null,
+        rail_side_media_id: input.railMediaId ? input.railSideMediaId : null,
         updated_at: new Date(),
       }
       if (id) {
@@ -291,7 +296,7 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
     const product = (await allProducts(db, mediaUrl, { includeInactive: true })).find((item) => item.id === req.params.id)
     if (!product) throw new HttpError(404, 'not_found', 'Produk tidak ditemukan.')
     const [row, variants, images] = await Promise.all([
-      db.selectFrom('products').select(['is_active', 'rail_media_id']).where('id', '=', product.id).executeTakeFirstOrThrow(),
+      db.selectFrom('products').select(['is_active', 'rail_media_id', 'rail_back_media_id', 'rail_side_media_id']).where('id', '=', product.id).executeTakeFirstOrThrow(),
       db.selectFrom('variants').select(['color', 'size', 'stock']).where('product_id', '=', product.id).execute(),
       db
         .selectFrom('product_images')
@@ -304,6 +309,8 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
       ...product,
       isActive: row.is_active,
       railMediaId: row.rail_media_id,
+      railBackMediaId: row.rail_back_media_id,
+      railSideMediaId: row.rail_side_media_id,
       stock: Object.fromEntries(variants.map((variant) => [`${variant.color}|${variant.size}`, variant.stock])),
       images: product.images.map((image, index) => ({ ...image, mediaId: images[index]?.media_id })),
     })

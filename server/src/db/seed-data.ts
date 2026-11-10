@@ -57,7 +57,7 @@ export const categories: Category[] = [
   },
 ]
 
-type SeedProduct = Omit<Product, 'images' | 'weightGrams' | 'railImage'>
+type SeedProduct = Omit<Product, 'images' | 'weightGrams' | 'railImage' | 'railBackImage' | 'railSideImage'>
 
 export const products: SeedProduct[] = [
   {

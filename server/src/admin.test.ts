@@ -197,6 +197,29 @@ describe('admin', () => {
     assert.ok(sale.some((item: Json) => item.slug === input.slug), 'discounted products fill the sale list')
   })
 
+  it('keeps front, back, and side rail cut-outs, and drops the others without a front', async () => {
+    const [front, back, side] = await Promise.all(
+      ['#aa0000', '#00aa00', '#0000aa'].map(async (color) => (await admin('/api/admin/media', { raw: await png(color, 400, 620) })).body.id),
+    )
+    const input = await product({ railKind: 'tee', railMediaId: front, railBackMediaId: back, railSideMediaId: side })
+    const created = await admin('/api/admin/products', { body: input })
+    assert.equal(created.status, 201)
+
+    const shown = (await call(`/api/products/${input.slug}`)).body
+    assert.ok(shown.railImage.endsWith(front))
+    assert.ok(shown.railBackImage.endsWith(back))
+    assert.ok(shown.railSideImage.endsWith(side))
+    const detail = (await admin(`/api/admin/products/${created.body.id}`)).body
+    assert.deepEqual([detail.railMediaId, detail.railBackMediaId, detail.railSideMediaId], [front, back, side])
+
+    // Older dashboards that send only the front leave no back or side behind.
+    await admin(`/api/admin/products/${created.body.id}`, { method: 'PUT', body: { ...input, railMediaId: null } })
+    const cleared = (await admin(`/api/admin/products/${created.body.id}`)).body
+    assert.deepEqual([cleared.railMediaId, cleared.railBackMediaId, cleared.railSideMediaId], [null, null, null])
+    const store = (await call(`/api/products/${input.slug}`)).body
+    assert.equal(store.railBackImage, undefined)
+  })
+
   it('explains invalid products', async () => {
     const cheaperStrike = await admin('/api/admin/products', { body: await product({ price: 200_000, compareAtPrice: 150_000 }) })
     assert.equal(cheaperStrike.status, 422)

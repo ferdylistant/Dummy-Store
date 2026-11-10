@@ -45,6 +45,10 @@ export interface Schema {
     is_active: Generated<boolean>
     /** A cut-out picture for the hanging rail. Without one, the rail draws the garment. */
     rail_media_id: string | null
+    /** Back of the rail cut-out, shown when the piece turns around. */
+    rail_back_media_id: string | null
+    /** Side-on cut-out, shown while the piece rests on the rail. */
+    rail_side_media_id: string | null
     created_at: Timestamp
     updated_at: Timestamp
   }
@@ -318,6 +322,13 @@ const MIGRATIONS: Record<string, Migration> = {
       ]) {
         await statement.execute(db)
       }
+    },
+  },
+  '004_rail_faces': {
+    async up(db) {
+      await sql`ALTER TABLE products
+        ADD COLUMN rail_back_media_id text REFERENCES media (id),
+        ADD COLUMN rail_side_media_id text REFERENCES media (id)`.execute(db)
     },
   },
 }

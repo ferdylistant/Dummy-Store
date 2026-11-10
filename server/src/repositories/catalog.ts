@@ -81,6 +81,8 @@ function toProduct(
     image: row.image ?? undefined,
     images: images.get(row.id) ?? [],
     railImage: row.rail_media_id ? mediaUrl(row.rail_media_id) : undefined,
+    railBackImage: row.rail_media_id && row.rail_back_media_id ? mediaUrl(row.rail_back_media_id) : undefined,
+    railSideImage: row.rail_media_id && row.rail_side_media_id ? mediaUrl(row.rail_side_media_id) : undefined,
     weightGrams: row.weight_grams,
   }
 }

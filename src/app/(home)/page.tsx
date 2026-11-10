@@ -68,6 +68,8 @@ export default async function HomePage() {
     kind: product.railKind ?? 'tee',
     color: product.colors[0].hex,
     image: product.railImage ? mediaSrc(product.railImage) : undefined,
+    backImage: product.railBackImage ? mediaSrc(product.railBackImage) : undefined,
+    sideImage: product.railSideImage ? mediaSrc(product.railSideImage) : undefined,
     tag: formatRupiahShort(product.price),
     details: product.details.slice(0, 3),
   }))

@@ -63,6 +63,10 @@ export interface Product {
   images: ProductImage[]
   /** Cut-out picture for the hanging rail on the home page. */
   railImage?: string
+  /** Back of the rail cut-out. The front is reused without it. */
+  railBackImage?: string
+  /** Side-on rail cut-out, shown while the piece rests on the rail. */
+  railSideImage?: string
   weightGrams: number
 }
 
