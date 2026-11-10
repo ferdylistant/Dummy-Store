@@ -1,6 +1,7 @@
 import { MessageCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import type { SocialNetwork } from '@/services/store'
 
 function Svg({ children }: { children: ReactNode }) {
   return (
@@ -54,26 +55,28 @@ function whatsappHref(phone: string) {
   return `https://wa.me/${international}`
 }
 
-// Ganti href dengan akun toko. Link yang dikosongkan tidak ditampilkan.
-const SOCIALS = [
-  { label: 'Instagram', href: 'https://instagram.com/dummystore', icon: <Instagram /> },
-  { label: 'TikTok', href: 'https://tiktok.com/@dummystore', icon: <TikTok /> },
-  { label: 'Facebook', href: '', icon: <Facebook /> },
-  { label: 'YouTube', href: '', icon: <YouTube /> },
+// Links come from the dashboard settings. Empty ones are not shown.
+const NETWORKS: { key: SocialNetwork; label: string; icon: ReactNode }[] = [
+  { key: 'instagram', label: 'Instagram', icon: <Instagram /> },
+  { key: 'tiktok', label: 'TikTok', icon: <TikTok /> },
+  { key: 'facebook', label: 'Facebook', icon: <Facebook /> },
+  { key: 'youtube', label: 'YouTube', icon: <YouTube /> },
 ]
 
 export function SocialLinks({
   phone,
+  socials = {},
   storeName,
   className,
 }: {
   phone?: string
+  socials?: Partial<Record<SocialNetwork, string>>
   storeName: string
   className?: string
 }) {
   const whatsapp = phone ? whatsappHref(phone) : null
   const links = [
-    ...SOCIALS,
+    ...NETWORKS.map((network) => ({ ...network, href: socials[network.key] ?? '' })),
     ...(whatsapp ? [{ label: 'WhatsApp', href: whatsapp, icon: <MessageCircle className="size-5" aria-hidden="true" /> }] : []),
   ].filter((item) => item.href)
 

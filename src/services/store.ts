@@ -14,7 +14,11 @@ export interface StoreSettings {
   freeShippingMin: number
   flatRates: { reguler: number; ekspres: number }
   returnDays: number
+  /** Footer links from the dashboard. Only filled ones are sent. */
+  socials: Partial<Record<SocialNetwork, string>>
 }
+
+export type SocialNetwork = 'instagram' | 'tiktok' | 'facebook' | 'youtube'
 
 /** Used when the API cannot be reached, so the store still renders. */
 export const DEFAULT_STORE: StoreSettings = {
@@ -27,6 +31,7 @@ export const DEFAULT_STORE: StoreSettings = {
   freeShippingMin: 300_000,
   flatRates: { reguler: 20_000, ekspres: 35_000 },
   returnDays: 14,
+  socials: {},
 }
 
 export const getStoreSettings = cache(async (): Promise<StoreSettings> => {

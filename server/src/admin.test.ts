@@ -318,6 +318,25 @@ describe('admin', () => {
 
     const invalid = await admin('/api/admin/settings/store', { method: 'PUT', body: { ...settings.store, email: 'bukan email' } })
     assert.equal(invalid.status, 422)
+
+    // Footer links: only filled ones are public, and each must point to its own network.
+    assert.deepEqual(shown.socials, {}, 'nothing filled, nothing shown')
+    const socials = await admin('/api/admin/settings/store', {
+      method: 'PUT',
+      body: { ...settings.store, socials: { instagram: 'https://www.instagram.com/dummystore', tiktok: '', facebook: '', youtube: 'https://youtube.com/@dummystore' } },
+    })
+    assert.equal(socials.status, 200, JSON.stringify(socials.body))
+    assert.deepEqual((await call('/api/settings')).body.socials, {
+      instagram: 'https://www.instagram.com/dummystore',
+      youtube: 'https://youtube.com/@dummystore',
+    })
+    for (const instagram of ['https://evil.example/instagram.com', 'http://instagram.com/toko', 'javascript:alert(1)', 'instagram.com/toko']) {
+      const bad = await admin('/api/admin/settings/store', { method: 'PUT', body: { ...settings.store, socials: { instagram } } })
+      assert.equal(bad.status, 422, instagram)
+      assert.equal(bad.body.error.details[0].field, 'socials.instagram')
+    }
+    const older = await admin('/api/admin/settings/store', { method: 'PUT', body: { ...settings.store, socials: undefined } })
+    assert.equal(older.status, 200, 'a dashboard that sends no socials clears them')
     const origin = await admin('/api/admin/settings/origin', {
       method: 'PUT',
       body: { name: 'Gudang', phone: '081234567890', address: 'Jalan Gudang 1', regionCode: '32.73.02.1004' },

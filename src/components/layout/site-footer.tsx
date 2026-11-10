@@ -45,7 +45,7 @@ export function SiteFooter({ store, navigation }: { store: StoreSettings; naviga
           <a href={`mailto:${store.email}`} className="mt-2 inline-block py-1 text-sm">
             <span className="link-stitch">{store.email}</span>
           </a>
-          <SocialLinks phone={store.phone} storeName={store.name} className="mt-4" />
+          <SocialLinks phone={store.phone} socials={store.socials} storeName={store.name} className="mt-4" />
         </div>
         {footerNavigation
           .filter((group) => group.title !== 'Belanja')

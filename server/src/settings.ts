@@ -5,6 +5,49 @@ import { regionCodeSchema } from './regions.js'
 
 const rupiah = z.number().int().min(0).max(100_000_000)
 
+/** Each network only accepts a link to its own site, so the footer cannot point anywhere else. */
+export const SOCIAL_HOSTS = {
+  instagram: ['instagram.com'],
+  tiktok: ['tiktok.com'],
+  facebook: ['facebook.com', 'fb.com'],
+  youtube: ['youtube.com', 'youtu.be'],
+} as const
+export type SocialNetwork = keyof typeof SOCIAL_HOSTS
+
+const NETWORK_NAMES: Record<SocialNetwork, string> = {
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  facebook: 'Facebook',
+  youtube: 'YouTube',
+}
+
+function socialLink(network: SocialNetwork) {
+  const hosts: readonly string[] = SOCIAL_HOSTS[network]
+  return z
+    .string()
+    .trim()
+    .max(200)
+    .refine((value) => {
+      if (!value) return true
+      try {
+        const url = new URL(value)
+        const host = url.hostname.toLowerCase().replace(/^(www|m)\./, '')
+        return url.protocol === 'https:' && hosts.includes(host)
+      } catch {
+        return false
+      }
+    }, `Tulis tautan lengkap ${NETWORK_NAMES[network]}, misalnya https://${hosts[0]}/namatoko.`)
+}
+
+const socialsSchema = z
+  .object({
+    instagram: socialLink('instagram').default(''),
+    tiktok: socialLink('tiktok').default(''),
+    facebook: socialLink('facebook').default(''),
+    youtube: socialLink('youtube').default(''),
+  })
+  .default({ instagram: '', tiktok: '', facebook: '', youtube: '' })
+
 export const storeSettingsSchema = z.object({
   name: z.string().trim().min(2).max(60),
   tagline: z.string().trim().max(120),
@@ -22,6 +65,8 @@ export const storeSettingsSchema = z.object({
   freeShippingMin: rupiah,
   flatRates: z.object({ reguler: rupiah, ekspres: rupiah }),
   returnDays: z.number().int().min(0).max(90),
+  /** Footer links. Empty ones are not shown. */
+  socials: socialsSchema,
 })
 
 export const originSettingsSchema = z.object({
@@ -67,6 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
     freeShippingMin: 300_000,
     flatRates: { reguler: 20_000, ekspres: 35_000 },
     returnDays: 14,
+    socials: { instagram: '', tiktok: '', facebook: '', youtube: '' },
   },
   origin: { name: '', phone: '', address: '', regionCode: '' },
   // Empty lists fall back to the product flags, so a new store still has a home page.
@@ -107,5 +153,7 @@ export async function publicSettings(db: Database, mediaUrl: (id: string) => str
     freeShippingMin: store.freeShippingMin,
     flatRates: store.flatRates,
     returnDays: store.returnDays,
+    // Only the networks the shop filled in.
+    socials: Object.fromEntries(Object.entries(store.socials ?? {}).filter(([, href]) => href)),
   }
 }
