@@ -401,6 +401,36 @@ describe('admin', () => {
     assert.equal((await admin(`/api/admin/orders/${paid.body.orderNumber}/cancel`, { body: {} })).status, 409)
   })
 
+  it('summarises a period with a daily series, comparisons, and what needs doing', async () => {
+    const shipLater = await call('/api/orders', {
+      body: { customer, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 3 }] },
+    })
+    await db.updateTable('orders').set({ status: 'paid', paid_at: new Date() }).where('order_number', '=', shipLater.body.orderNumber).execute()
+
+    const month = (await admin('/api/admin/overview')).body
+    assert.equal(month.days, 30)
+    assert.equal(month.series.length, 30)
+    assert.match(month.series[0].day, /^\d{4}-\d{2}-\d{2}$/)
+    const today = month.series.at(-1)
+    assert.ok(today.revenue >= shipLater.body.total, 'today is the last point of the series')
+    assert.equal(today.revenue, month.revenue.today)
+    assert.equal(month.series.reduce((total: number, point: Json) => total + point.revenue, 0), month.period.revenue.current)
+    assert.ok(month.period.paidOrders.current >= 2)
+    assert.equal(month.period.averageOrder.current, Math.round(month.period.revenue.current / month.period.paidOrders.current))
+    assert.ok(month.topProducts.some((item: Json) => item.productId === 'p019' && item.quantity >= 3))
+    assert.ok(month.toShip.some((item: Json) => item.orderNumber === shipLater.body.orderNumber), 'paid and not shipped yet')
+    assert.equal(typeof month.setup.origin, 'boolean')
+
+    const week = (await admin('/api/admin/overview?days=7')).body
+    assert.equal(week.series.length, 7)
+    assert.equal((await admin('/api/admin/overview?days=12')).status, 422)
+
+    const counts = (await admin('/api/admin/counts')).body
+    assert.ok(counts.toShip >= 1)
+    assert.equal(typeof counts.awaitingPayment, 'number')
+    assert.equal((await call('/api/admin/counts')).status, 401)
+  })
+
   it('lists customers without the admin', async () => {
     const customers = (await admin('/api/admin/customers')).body.items
     assert.ok(customers.some((item: Json) => item.email === 'pelanggan@example.com'))

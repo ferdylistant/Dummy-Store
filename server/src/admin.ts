@@ -202,40 +202,114 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
   })
 
   // ---------- overview
-  router.get('/overview', async (_req, res) => {
+  // Shop days start at midnight in Jakarta (UTC+7), so "today" matches the admin's clock.
+  const LOCAL_DAY = sql`((now() AT TIME ZONE 'UTC') + interval '7 hours')::date`
+
+  router.get('/overview', async (req, res) => {
+    const { days } = z.object({ days: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30) }).parse(req.query)
+    const since = sql`now() - make_interval(days => ${days}::int)`
+    const before = sql`now() - make_interval(days => ${days * 2}::int)`
     const paid = db.selectFrom('orders').where('status', '=', 'paid')
-    const since = (days: number) => new Date(Date.now() - days * 86_400_000)
-    const [today, month, all, statuses, fulfillment, lowStock, recent, customers, products] = await Promise.all([
-      paid.select(sql<number>`coalesce(sum(total), 0)::int`.as('sum')).where('paid_at', '>=', since(1)).executeTakeFirstOrThrow(),
-      paid.select(sql<number>`coalesce(sum(total), 0)::int`.as('sum')).where('paid_at', '>=', since(30)).executeTakeFirstOrThrow(),
-      paid.select(sql<number>`coalesce(sum(total), 0)::int`.as('sum')).executeTakeFirstOrThrow(),
-      db.selectFrom('orders').select(['status', sql<number>`count(*)::int`.as('count')]).groupBy('status').execute(),
-      db
-        .selectFrom('orders')
-        .select(['fulfillment_status', sql<number>`count(*)::int`.as('count')])
-        .where('status', '=', 'paid')
-        .groupBy('fulfillment_status')
-        .execute(),
-      db
-        .selectFrom('variants')
-        .innerJoin('products', 'products.id', 'variants.product_id')
-        .select(['products.id', 'products.name', 'variants.color', 'variants.size', 'variants.stock'])
-        .where('products.is_active', '=', true)
-        .where('variants.stock', '<=', 3)
-        .orderBy('variants.stock')
-        .limit(8)
-        .execute(),
-      db
-        .selectFrom('orders')
-        .select(['order_number', 'full_name', 'total', 'status', 'fulfillment_status', 'created_at'])
-        .orderBy('id', 'desc')
-        .limit(6)
-        .execute(),
-      sql<{ count: number }>`SELECT count(*)::int AS count FROM "user" WHERE coalesce(role, 'customer') <> 'admin'`.execute(db),
-      db.selectFrom('products').select(sql<number>`count(*)::int`.as('count')).where('is_active', '=', true).executeTakeFirstOrThrow(),
-    ])
+
+    const [today, all, statuses, fulfillment, lowStock, recent, customers, products, totals, series, top, toShip, expiring, setup] =
+      await Promise.all([
+        paid
+          .select(sql<number>`coalesce(sum(total), 0)::int`.as('sum'))
+          .where(sql<boolean>`((paid_at AT TIME ZONE 'UTC') + interval '7 hours')::date = ${LOCAL_DAY}`)
+          .executeTakeFirstOrThrow(),
+        paid.select(sql<number>`coalesce(sum(total), 0)::int`.as('sum')).executeTakeFirstOrThrow(),
+        db.selectFrom('orders').select(['status', sql<number>`count(*)::int`.as('count')]).groupBy('status').execute(),
+        db
+          .selectFrom('orders')
+          .select(['fulfillment_status', sql<number>`count(*)::int`.as('count')])
+          .where('status', '=', 'paid')
+          .groupBy('fulfillment_status')
+          .execute(),
+        db
+          .selectFrom('variants')
+          .innerJoin('products', 'products.id', 'variants.product_id')
+          .select(['products.id', 'products.name', 'variants.color', 'variants.size', 'variants.stock'])
+          .where('products.is_active', '=', true)
+          .where('variants.stock', '<=', 3)
+          .orderBy('variants.stock')
+          .limit(8)
+          .execute(),
+        db
+          .selectFrom('orders')
+          .select(['order_number', 'full_name', 'total', 'status', 'fulfillment_status', 'created_at'])
+          .orderBy('id', 'desc')
+          .limit(6)
+          .execute(),
+        sql<{ count: number; current: number; previous: number }>`SELECT count(*)::int AS count,
+            count(*) FILTER (WHERE "createdAt" >= ${since})::int AS current,
+            count(*) FILTER (WHERE "createdAt" >= ${before} AND "createdAt" < ${since})::int AS previous
+          FROM "user" WHERE coalesce(role, 'customer') <> 'admin'`.execute(db),
+        db.selectFrom('products').select(sql<number>`count(*)::int`.as('count')).where('is_active', '=', true).executeTakeFirstOrThrow(),
+        sql<{ revenue: number; prev_revenue: number; paid: number; prev_paid: number; created: number; prev_created: number }>`SELECT
+            coalesce(sum(total) FILTER (WHERE status = 'paid' AND paid_at >= ${since}), 0)::int AS revenue,
+            coalesce(sum(total) FILTER (WHERE status = 'paid' AND paid_at >= ${before} AND paid_at < ${since}), 0)::int AS prev_revenue,
+            count(*) FILTER (WHERE status = 'paid' AND paid_at >= ${since})::int AS paid,
+            count(*) FILTER (WHERE status = 'paid' AND paid_at >= ${before} AND paid_at < ${since})::int AS prev_paid,
+            count(*) FILTER (WHERE created_at >= ${since})::int AS created,
+            count(*) FILTER (WHERE created_at >= ${before} AND created_at < ${since})::int AS prev_created
+          FROM orders`.execute(db),
+        sql<{ day: string; revenue: number; orders: number }>`SELECT to_char(d, 'YYYY-MM-DD') AS day,
+            coalesce(sum(o.total), 0)::int AS revenue,
+            count(o.id)::int AS orders
+          FROM generate_series(${LOCAL_DAY} - ${days - 1}::int, ${LOCAL_DAY}, interval '1 day') AS d
+          LEFT JOIN orders o ON o.status = 'paid' AND ((o.paid_at AT TIME ZONE 'UTC') + interval '7 hours')::date = d::date
+          GROUP BY d ORDER BY d`.execute(db),
+        sql<{ productId: string; name: string; quantity: number; revenue: number; mediaId: string | null }>`SELECT i.product_id AS "productId",
+            max(i.product_name) AS name,
+            sum(i.quantity)::int AS quantity,
+            sum(i.line_total)::int AS revenue,
+            (SELECT media_id FROM product_images WHERE product_id = i.product_id ORDER BY position LIMIT 1) AS "mediaId"
+          FROM order_items i JOIN orders o ON o.id = i.order_id
+          WHERE o.status = 'paid' AND o.paid_at >= ${since}
+          GROUP BY i.product_id ORDER BY quantity DESC, revenue DESC LIMIT 5`.execute(db),
+        db
+          .selectFrom('orders')
+          .select(['order_number', 'full_name', 'total', 'paid_at', 'fulfillment_status', 'city'])
+          .where('status', '=', 'paid')
+          .where('fulfillment_status', 'in', ['unfulfilled', 'packed'])
+          .orderBy('paid_at')
+          .limit(5)
+          .execute(),
+        db
+          .selectFrom('orders')
+          .select(['order_number', 'full_name', 'total', 'expires_at', 'payment_method'])
+          .where('status', '=', 'awaiting_payment')
+          .where('expires_at', '>', new Date())
+          .orderBy('expires_at')
+          .limit(5)
+          .execute(),
+        Promise.all([
+          getSettings(db, 'store'),
+          getSettings(db, 'origin'),
+          sql<{ without_photos: number; on_rail_with_photos: number }>`SELECT
+              count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = p.id))::int AS without_photos,
+              count(*) FILTER (WHERE p.rail_media_id IS NOT NULL)::int AS on_rail_with_photos
+            FROM products p WHERE p.is_active`.execute(db),
+        ]),
+      ])
+
+    const sum = totals.rows[0]!
+    const [store, origin, catalog] = setup
+    const people = customers.rows[0] ?? { count: 0, current: 0, previous: 0 }
     res.json({
-      revenue: { today: today.sum, last30Days: month.sum, total: all.sum },
+      days,
+      revenue: { today: today.sum, last30Days: sum.revenue, total: all.sum },
+      period: {
+        revenue: { current: sum.revenue, previous: sum.prev_revenue },
+        paidOrders: { current: sum.paid, previous: sum.prev_paid },
+        createdOrders: { current: sum.created, previous: sum.prev_created },
+        averageOrder: {
+          current: sum.paid ? Math.round(sum.revenue / sum.paid) : 0,
+          previous: sum.prev_paid ? Math.round(sum.prev_revenue / sum.prev_paid) : 0,
+        },
+        newCustomers: { current: people.current, previous: people.previous },
+      },
+      series: series.rows,
       orders: Object.fromEntries(statuses.map((row) => [row.status, row.count])),
       fulfillment: Object.fromEntries(fulfillment.map((row) => [row.fulfillment_status, row.count])),
       lowStock: lowStock.map((row) => ({ productId: row.id, name: row.name, color: row.color, size: row.size, stock: row.stock })),
@@ -247,9 +321,43 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
         fulfillmentStatus: row.fulfillment_status,
         createdAt: row.created_at,
       })),
-      customers: customers.rows[0]?.count ?? 0,
+      topProducts: top.rows.map(({ mediaId, ...row }) => ({ ...row, image: mediaId ? mediaUrl(mediaId) : null })),
+      toShip: toShip.map((row) => ({
+        orderNumber: row.order_number,
+        customer: row.full_name,
+        city: row.city,
+        total: row.total,
+        paidAt: row.paid_at,
+        fulfillmentStatus: row.fulfillment_status,
+      })),
+      expiring: expiring.map((row) => ({
+        orderNumber: row.order_number,
+        customer: row.full_name,
+        total: row.total,
+        expiresAt: row.expires_at,
+        paymentMethod: row.payment_method,
+      })),
+      setup: {
+        origin: Boolean(origin.regionCode),
+        logo: Boolean(store.logoMediaId),
+        contact: Boolean(store.phone) && store.email !== 'halo@dummystore.example',
+        socials: Object.values(store.socials ?? {}).some(Boolean),
+        productsWithoutPhotos: catalog.rows[0]?.without_photos ?? 0,
+        railPhotos: catalog.rows[0]?.on_rail_with_photos ?? 0,
+      },
+      customers: people.count,
       activeProducts: products.count,
     })
+  })
+
+  // Small numbers for the menu badges, asked on every page.
+  router.get('/counts', async (_req, res) => {
+    const { rows } = await sql<{ to_ship: number; awaiting: number; low_stock: number }>`SELECT
+        (SELECT count(*) FROM orders WHERE status = 'paid' AND fulfillment_status IN ('unfulfilled', 'packed'))::int AS to_ship,
+        (SELECT count(*) FROM orders WHERE status = 'awaiting_payment')::int AS awaiting,
+        (SELECT count(DISTINCT v.product_id) FROM variants v JOIN products p ON p.id = v.product_id WHERE p.is_active AND v.stock <= 3)::int AS low_stock`.execute(db)
+    const row = rows[0]!
+    res.json({ toShip: row.to_ship, awaitingPayment: row.awaiting, lowStock: row.low_stock })
   })
 
   // ---------- media
@@ -411,7 +519,8 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
     const { status, fulfillment, q, page } = z
       .object({
         status: z.enum(['awaiting_payment', 'paid', 'expired', 'cancelled', 'refunded']).optional(),
-        fulfillment: z.enum(FULFILLMENT).optional(),
+        /** "to_ship" is paid work not handed to a courier yet: unfulfilled or packed. */
+        fulfillment: z.enum([...FULFILLMENT, 'to_ship']).optional(),
         q: z.string().trim().max(80).optional(),
         page: z.coerce.number().int().min(1).default(1),
       })
@@ -419,7 +528,8 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
     const PAGE = 20
     let query = db.selectFrom('orders')
     if (status) query = query.where('status', '=', status)
-    if (fulfillment) query = query.where('fulfillment_status', '=', fulfillment)
+    if (fulfillment === 'to_ship') query = query.where('status', '=', 'paid').where('fulfillment_status', 'in', ['unfulfilled', 'packed'])
+    else if (fulfillment) query = query.where('fulfillment_status', '=', fulfillment)
     if (q) {
       const like = `%${q.replace(/[%_\\]/g, (char) => `\\${char}`)}%`
       query = query.where((eb) =>
