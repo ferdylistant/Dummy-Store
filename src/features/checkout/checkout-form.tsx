@@ -148,7 +148,7 @@ export function CheckoutForm() {
   const [ordered, setOrdered] = useState(false)
   // Stays the same across retries, so reopening payment reuses the same order.
   const [idempotencyKey] = useState(() => crypto.randomUUID())
-  const { data: session } = authClient.useSession()
+  const { data: session, isPending: sessionPending } = authClient.useSession()
   const [addresses, setAddresses] = useState<Address[]>([])
   const [addressChoice, setAddressChoice] = useState<string>(NEW_ADDRESS)
   const [saveAddress, setSaveAddress] = useState(true)
@@ -172,10 +172,19 @@ export function CheckoutForm() {
   const userId = session?.user.id
   const userEmail = session?.user.email
 
+  // Orders always go to the account's email, the same one the API uses.
+  useEffect(() => {
+    if (userEmail) setValue('email', userEmail, { shouldValidate: true })
+  }, [userEmail, setValue])
+
+  // An expired session only shows when the cookie outlived it. Sign in again, then come back.
+  useEffect(() => {
+    if (!sessionPending && !session) router.replace('/masuk?next=%2Fcheckout&sesi=habis')
+  }, [sessionPending, session, router])
+
   // A signed in shopper starts from their default address, like a marketplace app.
   useEffect(() => {
     if (!userId) return
-    if (userEmail && !getValues('email')) setValue('email', userEmail)
     let current = true
     getAddresses()
       .then((saved) => {
@@ -267,6 +276,10 @@ export function CheckoutForm() {
       else if (outcome === 'close') setUnfinished(true)
       else setSubmitError('Pembayaran gagal diproses. Coba lagi atau pilih metode lain.')
     } catch (error) {
+      if (error instanceof ApiError && error.code === 'login_required') {
+        router.replace('/masuk?next=%2Fcheckout&sesi=habis')
+        return
+      }
       if (error instanceof ApiError && error.code === 'shipping_changed') {
         shippingQuote.refresh()
         goTo(1)
@@ -431,7 +444,9 @@ export function CheckoutForm() {
                   label="Email"
                   type="email"
                   autoComplete="email"
-                  required
+                  readOnly
+                  hint="Email akun Anda. Kabar pesanan dikirim ke sini."
+                  className="[&_input]:bg-muted [&_input]:text-muted-foreground"
                   error={errors.email?.message}
                   {...register('email')}
                 />

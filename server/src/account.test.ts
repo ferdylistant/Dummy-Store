@@ -343,13 +343,13 @@ describe('accounts', () => {
     assert.ok((await laptop.call('/api/auth/get-session')).body.session, 'this device stays signed in')
   })
 
-  it('refuses a payment method the store does not offer', async () => {
+  it('refuses guests and a payment method the store does not offer', async () => {
     const order = await client().call('/api/orders', {
       body: {
         customer: { ...address, email: 'x@example.com', fullName: 'Budi', shippingMethod: 'reguler', paymentMethod: 'cod' },
         items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 1 }],
       },
     })
-    assert.equal(order.status, 422)
+    assert.equal(order.status, 401, 'ordering needs an account')
   })
 })

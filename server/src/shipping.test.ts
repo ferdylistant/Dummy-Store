@@ -7,7 +7,7 @@ import { openDatabase, type Database } from './db/index.js'
 import { createMidtransGateway, type PaymentGateway } from './payments/midtrans.js'
 import { saveSettings } from './settings.js'
 import type { CourierRate, RateProvider } from './shipping.js'
-import { testAuth } from './testing/auth.js'
+import { shopperCookie, testAuth } from './testing/auth.js'
 
 // Each test asserts the fields it needs.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,6 +37,7 @@ describe('shipping rates', () => {
   let base: string
   const calls: Parameters<RateProvider['rates']>[0][] = []
   let failing = false
+  let shopper = ''
 
   const provider: RateProvider = {
     async rates(input) {
@@ -49,7 +50,7 @@ describe('shipping rates', () => {
   const post = async (path: string, body: unknown) => {
     const response = await fetch(base + path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: shopper },
       body: JSON.stringify(body),
     })
     return { status: response.status, body: (await response.json()) as Json }
@@ -79,6 +80,7 @@ describe('shipping rates', () => {
       server = createApp(db, { corsOrigins: [], ordersPerMinute: 1000, payments: testGateway(), auth, shippingRates: provider }).listen(0, () => resolve())
     })
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    shopper = await shopperCookie(db, base)
   })
 
   after(async () => {

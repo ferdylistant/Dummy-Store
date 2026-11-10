@@ -676,7 +676,6 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
     const user = users[0]
     if (!user) throw new HttpError(404, 'not_found', 'Pelanggan tidak ditemukan.')
 
-    const email = user.email.toLowerCase()
 
     const [providers, sessions, preferences, addresses, orders] = await Promise.all([
       sql<{ providerId: string }>`SELECT DISTINCT "providerId" FROM account WHERE "userId" = ${user.id}`.execute(db),
@@ -686,9 +685,8 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
       db.selectFrom('addresses').selectAll().where('user_id', '=', user.id).orderBy('is_default', 'desc').orderBy('id').execute(),
       db
         .selectFrom('orders')
-        .select(['id', 'order_number', 'status', 'fulfillment_status', 'total', 'payment_method', 'shipping_method', 'city', 'created_at', 'paid_at', 'user_id'])
-        // Orders placed while signed in, plus guest orders with the same email.
-        .where((eb) => eb.or([eb('user_id', '=', user.id), eb.and([eb('user_id', 'is', null), eb(eb.fn('lower', ['email']), '=', email)])]))
+        .select(['id', 'order_number', 'status', 'fulfillment_status', 'total', 'payment_method', 'shipping_method', 'city', 'created_at', 'paid_at'])
+        .where('user_id', '=', user.id)
         .orderBy('id', 'desc')
         .limit(200)
         .execute(),
@@ -770,7 +768,6 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
         city: order.city,
         createdAt: order.created_at,
         itemCount: quantity.get(order.id) ?? 0,
-        guest: order.user_id === null,
       })),
       favourites: favourites.rows.map(({ mediaId, ...row }) => ({ ...row, image: mediaId ? mediaUrl(mediaId) : null })),
     })

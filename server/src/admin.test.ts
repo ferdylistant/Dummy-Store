@@ -7,7 +7,7 @@ import { createApp } from './app.js'
 import { ensureAdmin } from './auth.js'
 import { openDatabase, type Database } from './db/index.js'
 import { createMidtransGateway } from './payments/midtrans.js'
-import { TEST_ORIGIN, testAuth } from './testing/auth.js'
+import { shopperCookie, TEST_ORIGIN, testAuth } from './testing/auth.js'
 
 // Response bodies vary per endpoint, and each test asserts the fields it needs.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,7 +30,10 @@ describe('admin', () => {
   let adminCookie = ''
   let customerCookie = ''
 
+  // Ordering needs an account: store orders here are placed by the test customer.
+  let buyerCookie = ''
   async function call(path: string, init: { method?: string; body?: unknown; cookie?: string; raw?: Buffer; type?: string } = {}) {
+    if (path === '/api/orders' && init.cookie === undefined) init = { ...init, cookie: buyerCookie }
     const response = await fetch(base + path, {
       method: init.method ?? (init.body !== undefined || init.raw ? 'POST' : 'GET'),
       headers: {
@@ -113,6 +116,8 @@ describe('admin', () => {
     const { sql } = await import('kysely')
     await sql`UPDATE "user" SET "emailVerified" = true WHERE email = 'pelanggan@example.com'`.execute(db)
     customerCookie = await signIn('pelanggan@example.com', 'rahasia-panjang-123', '/api/auth')
+    // Store orders in the other tests belong to a separate buyer, so the customer page counts only its own.
+    buyerCookie = await shopperCookie(db, base, 'pembeli@example.com')
   })
 
   after(async () => {
@@ -437,11 +442,11 @@ describe('admin', () => {
     assert.ok(!customers.some((item: Json) => item.email === 'admin@example.com'))
   })
 
-  it('shows one customer with orders, guest orders by the same email, addresses, and favourites', async () => {
+  it('shows one customer with their orders, addresses, and favourites', async () => {
     const shopper = { ...customer, email: 'pelanggan@example.com' }
     const mine = await call('/api/orders', { cookie: customerCookie, body: { customer: shopper, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 2 }] } })
-    const asGuest = await call('/api/orders', { body: { customer: { ...shopper, email: 'Pelanggan@Example.com' }, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 1 }] } })
-    const stranger = await call('/api/orders', { body: { customer, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 1 }] } })
+    const guest = await call('/api/orders', { cookie: '', body: { customer: shopper, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 1 }] } })
+    assert.equal(guest.status, 401, 'no order without an account')
     await db.updateTable('orders').set({ status: 'paid', paid_at: new Date() }).where('order_number', '=', mine.body.orderNumber).execute()
     const address = await call('/api/me/addresses', {
       cookie: customerCookie,
@@ -458,9 +463,8 @@ describe('admin', () => {
     assert.equal(detail.status, 200)
     const numbers = detail.body.orders.map((order: Json) => order.orderNumber)
     assert.ok(numbers.includes(mine.body.orderNumber))
-    assert.ok(numbers.includes(asGuest.body.orderNumber), 'guest orders with the same email, any case')
-    assert.ok(!numbers.includes(stranger.body.orderNumber))
-    assert.equal(detail.body.orders.find((order: Json) => order.orderNumber === asGuest.body.orderNumber).guest, true)
+    const others = await db.selectFrom('orders').select('order_number').where('user_id', '!=', row.id).execute()
+    assert.ok(others.every((other) => !numbers.includes(other.order_number)), 'only this customer')
     assert.equal(detail.body.stats.paidOrders, 1)
     assert.equal(detail.body.stats.spent, mine.body.total)
     assert.equal(detail.body.stats.byStatus.awaiting_payment, detail.body.stats.orders - 1)

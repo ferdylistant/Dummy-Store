@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { createApp } from './app.js'
 import type { Auth } from './auth.js'
-import { testAuth } from './testing/auth.js'
+import { shopperCookie, testAuth } from './testing/auth.js'
 import { sql } from 'kysely'
 import { openDatabase, type Database } from './db/index.js'
 import { expireOverdueOrders } from './orders.js'
@@ -77,10 +77,11 @@ describe('payments', () => {
     (await db.selectFrom('orders').select('status').where('order_number', '=', orderNumber).executeTakeFirstOrThrow())
       .status
 
+  let shopper = ''
   const post = async (path: string, body: unknown, headers: Record<string, string> = {}) => {
     const response = await fetch(base + path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
+      headers: { 'Content-Type': 'application/json', Cookie: shopper, ...headers },
       body: JSON.stringify(body),
     })
     return { status: response.status, body: (await response.json()) as Json }
@@ -108,6 +109,7 @@ describe('payments', () => {
       }).listen(0, () => resolve())
     })
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    shopper = await shopperCookie(db, base)
   })
 
   after(async () => {
@@ -285,7 +287,7 @@ describe('payments', () => {
     })
     const response = await fetch(`http://127.0.0.1:${(bare.address() as AddressInfo).port}/api/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: shopper },
       body: JSON.stringify({ customer, items: [hoodie] }),
     })
     assert.equal(response.status, 503)

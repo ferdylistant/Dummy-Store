@@ -30,7 +30,9 @@ export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
   const signedIn = Boolean(getSessionCookie(request, { cookiePrefix: 'ds' }))
 
-  if ((pathname === '/akun' || pathname.startsWith('/akun/')) && !signedIn) {
+  // Accounts, and checkout since ordering needs an account. The cart is kept in the
+  // browser, so it is still there after signing in.
+  if ((pathname === '/akun' || pathname.startsWith('/akun/') || pathname === '/checkout') && !signedIn) {
     const url = new URL('/masuk', request.url)
     url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
@@ -47,5 +49,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/akun', '/akun/:path*', '/masuk', '/daftar', '/lupa-password', '/atur-ulang-password'],
+  matcher: ['/akun', '/akun/:path*', '/checkout', '/masuk', '/daftar', '/lupa-password', '/atur-ulang-password'],
 }

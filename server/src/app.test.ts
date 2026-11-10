@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { createApp } from './app.js'
 import type { Auth } from './auth.js'
-import { testAuth } from './testing/auth.js'
+import { shopperCookie, testAuth } from './testing/auth.js'
 import { sql } from 'kysely'
 import { openDatabase, type Database } from './db/index.js'
 import { createMidtransGateway, type PaymentGateway } from './payments/midtrans.js'
@@ -64,10 +64,12 @@ describe('API', () => {
     const response = await fetch(base + path)
     return { status: response.status, body: (await response.json()) as Json }
   }
+  // Ordering needs an account, so every order here is placed signed in.
+  let shopper = ''
   const order = async (body: unknown, headers: Record<string, string> = {}) => {
     const response = await fetch(`${base}/api/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
+      headers: { 'Content-Type': 'application/json', Cookie: shopper, ...headers },
       body: typeof body === 'string' ? body : JSON.stringify(body),
     })
     return { status: response.status, body: (await response.json()) as Json }
@@ -82,6 +84,7 @@ describe('API', () => {
       )
     })
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    shopper = await shopperCookie(db, base)
   })
 
   after(async () => {
@@ -283,6 +286,20 @@ describe('API', () => {
       assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
     })
 
+    it('needs an account to order, and uses its email', async () => {
+      const before = await stock(hoodie)
+      const guest = await order({ customer, items: [hoodie] }, { Cookie: '' })
+      assert.equal(guest.status, 401)
+      assert.equal(guest.body.error.code, 'login_required')
+      assert.equal(await stock(hoodie), before, 'nothing is reserved for a guest')
+
+      const signed = await order({ customer: { ...customer, email: 'orang.lain@example.com' }, items: [hoodie] })
+      assert.equal(signed.status, 201)
+      const saved = await db.selectFrom('orders').select(['email', 'user_id']).where('order_number', '=', signed.body.orderNumber).executeTakeFirstOrThrow()
+      assert.equal(saved.email, 'budi@example.com', 'the account email, not what the form sent')
+      assert.ok(saved.user_id)
+    })
+
     it('limits repeated orders', async () => {
       const limited = createApp(db, { corsOrigins: [ORIGIN], ordersPerMinute: 1, payments: testGateway(), auth })
       const limitedServer = await new Promise<Server>((resolve) => {
@@ -292,7 +309,7 @@ describe('API', () => {
       const send = () =>
         fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Cookie: shopper },
           body: JSON.stringify({ customer, items: [hoodie] }),
         })
       assert.equal((await send()).status, 201)

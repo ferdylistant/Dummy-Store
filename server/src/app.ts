@@ -220,16 +220,20 @@ export function createApp(db: Database, options: AppOptions) {
   })
 
   app.post('/api/orders', limiter(options.ordersPerMinute ?? 20), async (req, res) => {
-    const input = orderSchema.parse(req.body)
+    // Every order belongs to an account, so its history always shows on the account and in the dashboard.
+    const user = await sessionUser(options.auth, req.headers)
+    if (!user) throw new HttpError(401, 'login_required', 'Masuk dulu untuk memesan.')
+    const parsed = orderSchema.parse(req.body)
+    // The account's email, never what the form sent, so receipts go to the account owner.
+    const input = { ...parsed, customer: { ...parsed.customer, email: user.email } }
     const idempotencyKey = idempotencyKeySchema.parse(req.get('Idempotency-Key'))
     if (!payments) {
       throw new HttpError(503, 'payment_not_configured', 'Pembayaran belum disiapkan oleh toko.')
     }
-    const user = await sessionUser(options.auth, req.headers)
     const result = await createOrder(db, payments, input, {
       siteUrl: options.siteUrl ?? options.corsOrigins[0] ?? '',
       idempotencyKey,
-      userId: user?.id,
+      userId: user.id,
       region: await requireVillage(db, input.customer.regionCode),
       shippingRates: options.shippingRates,
     })

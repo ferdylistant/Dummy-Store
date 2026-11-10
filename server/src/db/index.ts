@@ -160,7 +160,7 @@ const DEFAULT_STOCK = 25
  * Each migration runs once, in name order, and is recorded in the database.
  * Add a new entry for every change. Never edit one that has shipped.
  */
-const MIGRATIONS: Record<string, Migration> = {
+export const MIGRATIONS: Record<string, Migration> = {
   '001_initial': {
     async up(db) {
       for (const statement of [
@@ -336,6 +336,24 @@ const MIGRATIONS: Record<string, Migration> = {
   '005_rail_hanger': {
     async up(db) {
       await sql`ALTER TABLE products ADD COLUMN rail_has_hanger boolean NOT NULL DEFAULT false`.execute(db)
+    },
+  },
+  // Ordering now needs an account. Orders placed without one are removed, as the shop owner asked
+  // on 2026-11-10. Stock held by unpaid ones goes back first.
+  '006_remove_guest_orders': {
+    async up(db) {
+      for (const statement of [
+        sql`UPDATE variants v SET stock = v.stock + held.quantity
+          FROM (SELECT i.product_id, i.color, i.size, sum(i.quantity)::int AS quantity
+                FROM order_items i JOIN orders o ON o.id = i.order_id
+                WHERE o.user_id IS NULL AND o.status = 'awaiting_payment'
+                GROUP BY i.product_id, i.color, i.size) AS held
+          WHERE v.product_id = held.product_id AND v.color = held.color AND v.size = held.size`,
+        sql`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id IS NULL)`,
+        sql`DELETE FROM orders WHERE user_id IS NULL`,
+      ]) {
+        await statement.execute(db)
+      }
     },
   },
 }
