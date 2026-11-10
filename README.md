@@ -108,8 +108,78 @@ Aturan akses dijaga di `src/proxy.ts` (dari cookie sesi) dan diperiksa lagi di s
 
 Memesan wajib masuk akun. `/checkout` diarahkan ke `/masuk?next=/checkout`, keranjang tetap tersimpan di browser, dan API menolak pesanan tanpa sesi dengan `login_required`. Email pesanan selalu email akun. Pembeli bisa memakai alamat tersimpan dan menyimpan alamat baru.
 
-## Sebelum deploy
+## Deploy ke Vercel
 
-1. Salin `.env.example` menjadi `.env.local`, lalu isi `NEXT_PUBLIC_SITE_URL` dan `NEXT_PUBLIC_API_URL` dengan domain asli.
-2. Salin `server/.env.example` menjadi `server/.env`, lalu isi `CORS_ORIGINS` dengan domain frontend.
-3. Isi `DATABASE_URL` dengan alamat PostgreSQL, misalnya Neon (pakai alamat *pooled*). Tabel dibuat lewat migrasi saat API pertama kali berjalan.
+Toko, API, dan dashboard menjadi **tiga project Vercel**. Browser hanya bicara dengan alamat toko dan alamat dashboard. Keduanya meneruskan `/api` ke project API, sehingga cookie login tetap milik domain masing-masing.
+
+| Project | Repo | Root Directory | Framework |
+| --- | --- | --- | --- |
+| API | `Dummy-Store` | `server` | Other (diatur oleh `server/vercel.json`) |
+| Toko | `Dummy-Store` | `.` (root) | Next.js |
+| Dashboard | `Dummy-Store-Admin` | `.` (root) | Next.js |
+
+Contoh di bawah memakai `toko.vercel.app`, `api-toko.vercel.app`, dan `admin-toko.vercel.app`. Ganti dengan alamat project Anda.
+
+### 1. Database Neon
+
+1. Buat project di https://neon.tech. Pilih region **Singapore** (`aws-ap-southeast-1`) supaya dekat dengan Vercel `sin1`.
+2. Salin connection string yang **pooled** (host-nya mengandung `-pooler`, diakhiri `?sslmode=require`).
+3. Tidak perlu membuat tabel. Migrasi, produk contoh, dan data wilayah dibuat otomatis saat API pertama kali dipanggil. Panggilan pertama itu bisa memakan waktu sampai sekitar satu menit.
+
+### 2. Project API
+
+Import repo `Dummy-Store`, ubah **Root Directory** menjadi `server`, lalu isi Environment Variables:
+
+| Variabel | Isi |
+| --- | --- |
+| `DATABASE_URL` | Connection string Neon (pooled) |
+| `BETTER_AUTH_SECRET` | Acak, minimal 32 karakter. Buat dengan `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `API_URL` | `https://api-toko.vercel.app` |
+| `SITE_URL`, `CORS_ORIGINS`, `STORE_AUTH_URL` | `https://toko.vercel.app` |
+| `ADMIN_URL`, `ADMIN_AUTH_URL` | `https://admin-toko.vercel.app` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Akun admin dashboard. Di production tidak ada akun bawaan |
+| `STORE_REVALIDATE_SECRET` | Acak. Isi yang sama di project toko sebagai `REVALIDATE_SECRET` |
+| `CRON_SECRET` | Acak. Vercel memakainya untuk memanggil `/api/cron/expire` setiap hari pukul 02.00 WIB |
+| `TRUST_PROXY` | `1` |
+| `MIDTRANS_SERVER_KEY`, `MIDTRANS_CLIENT_KEY`, `MIDTRANS_IS_PRODUCTION` | Kunci Midtrans. `false` untuk sandbox |
+| `RESEND_API_KEY`, `MAIL_FROM` | Email konfirmasi dan atur ulang password |
+| `BITESHIP_API_KEY`, `BITESHIP_COURIERS` | Opsional, untuk ongkir kurir |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Opsional. Redirect URI: `https://toko.vercel.app/api/auth/callback/google` |
+
+Setelah deploy, buka `https://api-toko.vercel.app/health`. Jawaban `{"status":"ok"}` berarti API dan database tersambung.
+
+Di dashboard Midtrans, atur **Payment Notification URL** ke `https://api-toko.vercel.app/api/payments/midtrans/notification`.
+
+### 3. Project toko
+
+Import repo `Dummy-Store` dengan Root Directory root, lalu isi:
+
+| Variabel | Isi |
+| --- | --- |
+| `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL` | `https://toko.vercel.app` (alamat toko sendiri, karena `/api` diteruskan) |
+| `API_URL` | `https://api-toko.vercel.app` |
+| `REVALIDATE_SECRET` | Sama dengan `STORE_REVALIDATE_SECRET` di project API |
+
+### 4. Project dashboard
+
+Import repo `Dummy-Store-Admin`, lalu isi:
+
+| Variabel | Isi |
+| --- | --- |
+| `NEXT_PUBLIC_API_URL` | `https://admin-toko.vercel.app` (alamat dashboard sendiri) |
+| `API_URL` | `https://api-toko.vercel.app` |
+| `NEXT_PUBLIC_STORE_URL` | `https://toko.vercel.app` |
+
+### Urutan yang disarankan
+
+1. Deploy ketiga project sekali untuk mendapatkan alamatnya. Build pertama boleh gagal karena env belum lengkap.
+2. Isi semua env di atas dengan alamat yang sudah didapat.
+3. Redeploy API, lalu toko dan dashboard.
+4. Buka `/health` di API, lalu coba daftar, masuk, dan pesan di toko.
+
+### Catatan
+
+- Variabel `NEXT_PUBLIC_*` dibaca saat build. Setelah mengubahnya, redeploy project itu.
+- Batas permintaan (rate limit) disimpan per instance fungsi, jadi di Vercel sifatnya longgar.
+- Di start-up pertama, log Better Auth bisa menulis "Database schema mismatch" sebelum tabelnya dibuat. Pesan itu hanya muncul sekali.
+- Cron di paket Hobby berjalan sekali sehari. Pesanan yang lewat batas bayar juga dilepas setiap kali ada pesanan baru.

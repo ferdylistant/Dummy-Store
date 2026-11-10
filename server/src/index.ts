@@ -1,73 +1,12 @@
-import { createApp } from './app.js'
-import { createAuth, ensureAdmin, migrateAuth } from './auth.js'
+// The API as a long running server, for development and for hosts with one.
+// On Vercel, api/index.js serves the same app as a function instead.
+import { bootstrap } from './bootstrap.js'
 import { config } from './config.js'
-import { importLegacySqlite } from './db/import-sqlite.js'
-import { openDatabase } from './db/index.js'
-import { createMailer } from './mail.js'
 import { expireOverdueOrders } from './orders.js'
-import { createMidtransGateway } from './payments/midtrans.js'
-import { createBiteshipRegions } from './regions.js'
-import { createBiteshipRates } from './shipping.js'
-import { storeRevalidator } from './revalidate.js'
 
 const SWEEP_MS = 5 * 60_000
 
-const db = await openDatabase(config.databaseUrl)
-const { serverKey, clientKey, isProduction } = config.midtrans
-
-const payments =
-  serverKey && clientKey ? createMidtransGateway({ serverKey, clientKey, isProduction }) : null
-
-if (!payments) {
-  console.warn('MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY belum diisi. Checkout akan ditolak.')
-} else if (isProduction === serverKey.startsWith('SB-')) {
-  console.warn('Mode Midtrans tidak cocok dengan kuncinya. Kunci sandbox diawali SB-.')
-}
-
-const google = config.google.clientId && config.google.clientSecret ? config.google : undefined
-const auth = createAuth(db, {
-  baseURL: config.apiUrl,
-  secret: config.authSecret,
-  trustedOrigins: config.corsOrigins,
-  mailer: createMailer(config.mail),
-  google,
-})
-await migrateAuth(auth)
-// Same accounts, separate sessions: the dashboard signs in on /api/admin-auth.
-const adminAuth = createAuth(db, {
-  baseURL: config.apiUrl,
-  secret: config.authSecret,
-  trustedOrigins: config.adminUrl ? [config.adminUrl] : [],
-  mailer: createMailer(config.mail),
-  scope: 'admin',
-})
-
-if (config.admin) {
-  const admin = await ensureAdmin(auth, config.admin)
-  if (admin.created) console.log(`Akun admin dibuat: ${config.admin.email}`)
-}
-
-const imported = await importLegacySqlite(db)
-if (imported) console.log('Data lama dari data/store.db dipindahkan ke PostgreSQL:', imported)
-
-if (!config.mail.resendApiKey) console.warn('RESEND_API_KEY belum diisi. Email ditampilkan di log ini.')
-const regions = config.biteship.apiKey ? createBiteshipRegions(config.biteship.apiKey) : null
-const shippingRates = config.biteship.apiKey ? createBiteshipRates(config.biteship.apiKey, config.biteship.couriers) : null
-if (!shippingRates) console.warn('BITESHIP_API_KEY belum diisi. Ongkir memakai tarif tetap dari dashboard.')
-
-const app = createApp(db, {
-  corsOrigins: config.corsOrigins,
-  siteUrl: config.siteUrl,
-  payments,
-  auth,
-  adminAuth,
-  regions,
-  shippingRates,
-  google: Boolean(google),
-  trustProxy: config.trustProxy,
-  publicUrl: config.apiUrl,
-  onStoreChange: storeRevalidator(config.revalidate),
-})
+const { app, db, payments, isProduction } = await bootstrap()
 
 const server = app.listen(config.port, () => {
   console.log(
@@ -77,6 +16,7 @@ const server = app.listen(config.port, () => {
   )
 })
 
+// A server that keeps running can sweep on a timer. Vercel uses a cron job.
 const sweeper = setInterval(() => {
   expireOverdueOrders(db, payments).catch((error) => console.error('Expiry sweep failed', error))
 }, SWEEP_MS)

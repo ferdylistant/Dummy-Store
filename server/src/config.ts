@@ -19,7 +19,14 @@ const port = Number(process.env.PORT ?? 4000)
  * A postgres:// URL (Neon in production), or a folder for PGlite in
  * development. Nothing needs installing for the folder.
  */
-const databaseUrl = process.env.DATABASE_URL?.trim() || 'data/pglite'
+const databaseUrl = (() => {
+  const url = process.env.DATABASE_URL?.trim()
+  // Vercel has no lasting disk, so a PGlite folder there would lose every order.
+  if (!url && (process.env.NODE_ENV === 'production' || process.env.VERCEL)) {
+    throw new Error('DATABASE_URL wajib diisi di production, misalnya connection string Neon.')
+  }
+  return url || 'data/pglite'
+})()
 
 /**
  * Sessions are signed with this secret. Production must set it. In
@@ -65,6 +72,15 @@ export const config = {
   /** Proxy hops in front of the API, such as 1 behind a load balancer. */
   trustProxy: Number(process.env.TRUST_PROXY ?? 0) || 0,
   apiUrl: (process.env.API_URL ?? `http://localhost:${port}`).replace(/\/$/, ''),
+  /**
+   * The address shoppers reach sign in through. On Vercel the store forwards
+   * /api to this API, so it is the store's own address and cookies stay first party.
+   */
+  storeAuthUrl: (process.env.STORE_AUTH_URL ?? process.env.API_URL ?? `http://localhost:${port}`).replace(/\/$/, ''),
+  /** The same for the dashboard, which forwards /api from its own address. */
+  adminAuthUrl: (process.env.ADMIN_AUTH_URL ?? process.env.API_URL ?? `http://localhost:${port}`).replace(/\/$/, ''),
+  /** Vercel Cron sends this as a bearer token. Without it the cron route is off. */
+  cronSecret: process.env.CRON_SECRET?.trim() || null,
   siteUrl: (process.env.SITE_URL ?? corsOrigins[0] ?? 'http://localhost:3000').replace(/\/$/, ''),
   authSecret: authSecret(),
   google: {

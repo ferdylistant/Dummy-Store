@@ -1,4 +1,5 @@
 import { toNodeHandler } from 'better-auth/node'
+import { timingSafeEqual } from 'node:crypto'
 import cors from 'cors'
 import express from 'express'
 import rateLimit from 'express-rate-limit'
@@ -15,6 +16,7 @@ import { errorHandler, HttpError, notFoundHandler } from './errors.js'
 import {
   applyPaymentStatus,
   createOrder,
+  expireOverdueOrders,
   orderNumberSchema,
   orderSchema,
   orderStatus,
@@ -103,6 +105,8 @@ export interface AppOptions {
   onStoreChange?: () => void
   /** Courier rates. Null or missing means the store's flat rates. */
   shippingRates?: RateProvider | null
+  /** Bearer token for the scheduled expiry sweep. Without it the route is not mounted. */
+  cronSecret?: string | null
 }
 
 export function createApp(db: Database, options: AppOptions) {
@@ -230,6 +234,8 @@ export function createApp(db: Database, options: AppOptions) {
     if (!payments) {
       throw new HttpError(503, 'payment_not_configured', 'Pembayaran belum disiapkan oleh toko.')
     }
+    // Vercel Cron runs once a day on Hobby, so stock held by overdue orders is also freed here.
+    await expireOverdueOrders(db, payments).catch((error) => console.error('Expiry sweep failed', error))
     const result = await createOrder(db, payments, input, {
       siteUrl: options.siteUrl ?? options.corsOrigins[0] ?? '',
       idempotencyKey,
@@ -284,6 +290,19 @@ export function createApp(db: Database, options: AppOptions) {
     // Unknown orders are acknowledged, so Midtrans test pings do not retry forever.
     res.json({ received: true, status: status ?? 'ignored' })
   })
+
+  // Vercel Cron calls this instead of a timer, which a function cannot keep.
+  if (options.cronSecret) {
+    const expected = Buffer.from(`Bearer ${options.cronSecret}`)
+    app.get('/api/cron/expire', async (req, res) => {
+      const given = Buffer.from(req.get('authorization') ?? '')
+      if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
+        throw new HttpError(401, 'unauthorized', 'Token cron tidak cocok.')
+      }
+      const released = await expireOverdueOrders(db, payments)
+      res.json({ released })
+    })
+  }
 
   app.use(notFoundHandler)
   app.use(errorHandler)
