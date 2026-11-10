@@ -436,4 +436,44 @@ describe('admin', () => {
     assert.ok(customers.some((item: Json) => item.email === 'pelanggan@example.com'))
     assert.ok(!customers.some((item: Json) => item.email === 'admin@example.com'))
   })
+
+  it('shows one customer with orders, guest orders by the same email, addresses, and favourites', async () => {
+    const shopper = { ...customer, email: 'pelanggan@example.com' }
+    const mine = await call('/api/orders', { cookie: customerCookie, body: { customer: shopper, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 2 }] } })
+    const asGuest = await call('/api/orders', { body: { customer: { ...shopper, email: 'Pelanggan@Example.com' }, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 1 }] } })
+    const stranger = await call('/api/orders', { body: { customer, items: [{ productId: 'p019', color: 'Putih Tulang', size: 'Satu ukuran', quantity: 1 }] } })
+    await db.updateTable('orders').set({ status: 'paid', paid_at: new Date() }).where('order_number', '=', mine.body.orderNumber).execute()
+    const address = await call('/api/me/addresses', {
+      cookie: customerCookie,
+      body: { label: 'Rumah', recipient: 'Pelanggan', phone: '081234567890', address: 'Jalan Melati No. 3, RT 02', regionCode: '32.73.02.1002' },
+    })
+    assert.equal(address.status, 201, JSON.stringify(address.body))
+
+    const list = (await admin('/api/admin/customers?q=pelanggan')).body.items
+    const row = list.find((item: Json) => item.email === 'pelanggan@example.com')
+    assert.deepEqual(row.providers, ['credential'])
+    assert.ok(row.lastOrderAt)
+
+    const detail = await admin(`/api/admin/customers/${row.id}`)
+    assert.equal(detail.status, 200)
+    const numbers = detail.body.orders.map((order: Json) => order.orderNumber)
+    assert.ok(numbers.includes(mine.body.orderNumber))
+    assert.ok(numbers.includes(asGuest.body.orderNumber), 'guest orders with the same email, any case')
+    assert.ok(!numbers.includes(stranger.body.orderNumber))
+    assert.equal(detail.body.orders.find((order: Json) => order.orderNumber === asGuest.body.orderNumber).guest, true)
+    assert.equal(detail.body.stats.paidOrders, 1)
+    assert.equal(detail.body.stats.spent, mine.body.total)
+    assert.equal(detail.body.stats.byStatus.awaiting_payment, detail.body.stats.orders - 1)
+    assert.equal(detail.body.months.length, 6)
+    assert.equal(detail.body.months.at(-1).spent, mine.body.total, 'this month is the last')
+    assert.deepEqual(detail.body.favourites.map((item: Json) => [item.productId, item.quantity]), [['p019', 2]])
+    assert.equal(detail.body.addresses[0].village, 'Lebak Gede')
+    assert.ok(detail.body.sessions.active >= 1)
+    assert.equal(typeof detail.body.preferences.orderUpdates, 'boolean')
+
+    const adminRow = await db.selectFrom('user' as never).select('id' as never).where('email' as never, '=', 'admin@example.com' as never).executeTakeFirstOrThrow()
+    assert.equal((await admin(`/api/admin/customers/${(adminRow as { id: string }).id}`)).status, 404, 'admins are not customers')
+    assert.equal((await admin('/api/admin/customers/tidak-ada')).status, 404)
+    assert.equal((await call(`/api/admin/customers/${row.id}`, { cookie: customerCookie })).status, 401)
+  })
 })

@@ -652,14 +652,128 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
       emailVerified: boolean
       createdAt: Date
       orders: number
+      paidOrders: number
       spent: number
+      lastOrderAt: Date | null
+      providers: string[]
     }>`SELECT u.id, u.name, u.email, u."emailVerified", u."createdAt",
-        count(o.id)::int AS orders, coalesce(sum(o.total) FILTER (WHERE o.status = 'paid'), 0)::int AS spent
+        count(o.id)::int AS orders,
+        count(o.id) FILTER (WHERE o.status = 'paid')::int AS "paidOrders",
+        coalesce(sum(o.total) FILTER (WHERE o.status = 'paid'), 0)::int AS spent,
+        max(o.created_at) AS "lastOrderAt",
+        coalesce((SELECT array_agg(DISTINCT a."providerId") FROM account a WHERE a."userId" = u.id), '{}') AS providers
       FROM "user" u LEFT JOIN orders o ON o.user_id = u.id
       WHERE coalesce(u.role, 'customer') <> 'admin'
         AND (${like}::text IS NULL OR u.name ILIKE ${like} OR u.email ILIKE ${like})
       GROUP BY u.id ORDER BY u."createdAt" DESC LIMIT 200`.execute(db)
     res.json({ items: rows.rows })
+  })
+
+  router.get('/customers/:id', async (req, res) => {
+    const { rows: users } = await sql<{ id: string; name: string; email: string; emailVerified: boolean; createdAt: Date; image: string | null }>`
+      SELECT id, name, email, "emailVerified", "createdAt", image FROM "user"
+      WHERE id = ${req.params.id} AND coalesce(role, 'customer') <> 'admin'`.execute(db)
+    const user = users[0]
+    if (!user) throw new HttpError(404, 'not_found', 'Pelanggan tidak ditemukan.')
+
+    const email = user.email.toLowerCase()
+
+    const [providers, sessions, preferences, addresses, orders] = await Promise.all([
+      sql<{ providerId: string }>`SELECT DISTINCT "providerId" FROM account WHERE "userId" = ${user.id}`.execute(db),
+      sql<{ active: number; lastSeen: Date | null }>`SELECT count(*) FILTER (WHERE "expiresAt" > now())::int AS active, max("updatedAt") AS "lastSeen"
+        FROM session WHERE "userId" = ${user.id}`.execute(db),
+      db.selectFrom('user_preferences').select(['order_updates', 'promotions']).where('user_id', '=', user.id).executeTakeFirst(),
+      db.selectFrom('addresses').selectAll().where('user_id', '=', user.id).orderBy('is_default', 'desc').orderBy('id').execute(),
+      db
+        .selectFrom('orders')
+        .select(['id', 'order_number', 'status', 'fulfillment_status', 'total', 'payment_method', 'shipping_method', 'city', 'created_at', 'paid_at', 'user_id'])
+        // Orders placed while signed in, plus guest orders with the same email.
+        .where((eb) => eb.or([eb('user_id', '=', user.id), eb.and([eb('user_id', 'is', null), eb(eb.fn('lower', ['email']), '=', email)])]))
+        .orderBy('id', 'desc')
+        .limit(200)
+        .execute(),
+    ])
+
+    const ids = orders.map((order) => order.id)
+    const [counts, favourites] = ids.length
+      ? await Promise.all([
+          db
+            .selectFrom('order_items')
+            .select(['order_id', sql<number>`sum(quantity)::int`.as('quantity')])
+            .where('order_id', 'in', ids)
+            .groupBy('order_id')
+            .execute(),
+          sql<{ productId: string; name: string; quantity: number; revenue: number; mediaId: string | null }>`SELECT i.product_id AS "productId",
+              max(i.product_name) AS name, sum(i.quantity)::int AS quantity, sum(i.line_total)::int AS revenue,
+              (SELECT media_id FROM product_images WHERE product_id = i.product_id ORDER BY position LIMIT 1) AS "mediaId"
+            FROM order_items i JOIN orders o ON o.id = i.order_id
+            WHERE o.status = 'paid' AND o.id = ANY(${ids}::int[])
+            GROUP BY i.product_id ORDER BY quantity DESC, revenue DESC LIMIT 5`.execute(db),
+        ])
+      : [[], { rows: [] }]
+    const quantity = new Map(counts.map((row) => [row.order_id, row.quantity]))
+
+    const paid = orders.filter((order) => order.status === 'paid')
+    const spent = paid.reduce((sum, order) => sum + order.total, 0)
+    // Six calendar months, Jakarta time, oldest first.
+    const months = Array.from({ length: 6 }, (_, back) => {
+      const local = new Date(Date.now() + 7 * 3_600_000)
+      local.setUTCDate(1)
+      local.setUTCMonth(local.getUTCMonth() - (5 - back))
+      return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}`
+    })
+    const monthOf = (date: Date) => {
+      const local = new Date(new Date(date).getTime() + 7 * 3_600_000)
+      return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}`
+    }
+
+    res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      createdAt: user.createdAt,
+      image: user.image,
+      providers: providers.rows.map((row) => row.providerId),
+      sessions: { active: sessions.rows[0]?.active ?? 0, lastSeen: sessions.rows[0]?.lastSeen ?? null },
+      preferences: { orderUpdates: preferences?.order_updates ?? true, promotions: preferences?.promotions ?? false },
+      stats: {
+        orders: orders.length,
+        paidOrders: paid.length,
+        spent,
+        averageOrder: paid.length ? Math.round(spent / paid.length) : 0,
+        firstPaidAt: paid.at(-1)?.paid_at ?? null,
+        lastOrderAt: orders[0]?.created_at ?? null,
+        byStatus: Object.fromEntries(['paid', 'awaiting_payment', 'expired', 'cancelled', 'refunded'].map((status) => [status, orders.filter((order) => order.status === status).length])),
+      },
+      months: months.map((month) => ({ month, spent: paid.filter((order) => order.paid_at && monthOf(order.paid_at) === month).reduce((sum, order) => sum + order.total, 0) })),
+      addresses: addresses.map((row) => ({
+        id: row.id,
+        label: row.label,
+        recipient: row.recipient,
+        phone: row.phone,
+        address: row.address,
+        village: row.village,
+        district: row.district,
+        city: row.city,
+        province: row.province,
+        postalCode: row.postal_code,
+        isDefault: row.is_default,
+      })),
+      orders: orders.map((order) => ({
+        orderNumber: order.order_number,
+        status: order.status,
+        fulfillmentStatus: order.fulfillment_status,
+        total: order.total,
+        paymentMethod: order.payment_method,
+        shippingMethod: order.shipping_method,
+        city: order.city,
+        createdAt: order.created_at,
+        itemCount: quantity.get(order.id) ?? 0,
+        guest: order.user_id === null,
+      })),
+      favourites: favourites.rows.map(({ mediaId, ...row }) => ({ ...row, image: mediaId ? mediaUrl(mediaId) : null })),
+    })
   })
 
   // ---------- settings
