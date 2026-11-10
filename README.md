@@ -100,13 +100,13 @@ Semua kunci di bawah ini diisi di `server/.env`. Tanpa kunci, fitur tetap jalan 
 
 Aturan akses dijaga di `src/proxy.ts` (dari cookie sesi) dan diperiksa lagi di setiap halaman:
 
-- `/akun/...` hanya untuk yang sudah masuk. Tamu diarahkan ke `/masuk?next=...`.
+- `/akun/...` dan `/checkout` hanya untuk yang sudah masuk. Tamu diarahkan ke `/masuk?next=...`.
 - `/masuk`, `/daftar`, `/lupa-password`, dan `/atur-ulang-password` tanpa token hanya untuk tamu. Yang sudah masuk diarahkan ke akun.
 - Tautan reset password dari email tetap bisa dibuka walau sedang masuk.
 - Tujuan `?next=` hanya boleh halaman di situs ini (`src/lib/safe-next.ts`, diuji dengan `npm run test:web`).
 - Data akun selalu diperiksa ulang oleh API, jadi proxy bukan satu-satunya pengaman.
 
-Checkout tetap bisa tanpa akun. Pembeli yang masuk bisa memakai alamat tersimpan dan menyimpan alamat baru.
+Memesan wajib masuk akun. `/checkout` diarahkan ke `/masuk?next=/checkout`, keranjang tetap tersimpan di browser, dan API menolak pesanan tanpa sesi dengan `login_required`. Email pesanan selalu email akun. Pembeli bisa memakai alamat tersimpan dan menyimpan alamat baru.
 
 ## Sebelum deploy
 
