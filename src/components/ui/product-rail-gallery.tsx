@@ -1255,7 +1255,7 @@ function Detail({ uid, item, index, total, hanger, labels, reduced, action, sour
 
   return createPortal(
     <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain px-4 pt-16 pb-8 text-foreground md:items-center md:p-6" onKeyDown={onKeyDown}>
-      <div aria-hidden="true" className={`absolute inset-0 bg-background md:bg-background/90 md:backdrop-blur-xl transition-opacity duration-300 motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`} onClick={dismiss} />
+      <div aria-hidden="true" className={`fixed inset-0 bg-background md:bg-background/90 md:backdrop-blur-xl transition-opacity duration-300 motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`} onClick={dismiss} />
       <button ref={closeRef} type="button" onClick={dismiss} className={`fixed right-4 top-4 z-10 bg-background/80 md:absolute md:right-5 md:top-5 md:bg-transparent inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium tracking-wide text-muted-foreground outline-none transition-[opacity,color] duration-300 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}>
         {labels.close}
         <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M3 3l10 10M13 3L3 13" /></svg>
