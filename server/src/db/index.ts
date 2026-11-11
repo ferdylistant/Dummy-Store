@@ -388,7 +388,32 @@ async function dialectFor(url: string): Promise<Dialect> {
     }
     // An idle connection that breaks must not take the whole function down.
     pool.on('error', (error) => console.warn('Koneksi database terputus, dibuka ulang saat dibutuhkan.', error.message))
-    return new PostgresDialect({ pool })
+    // Neon suspends after about five idle minutes and cuts every open connection.
+    // A warm function cannot know, so each connection answers a tiny query before
+    // it is used, and a dead one is replaced instead of failing the request.
+    const checked = {
+      options: pool.options,
+      end: () => pool.end(),
+      async connect() {
+        for (let attempt = 1; ; attempt++) {
+          const client = await pool.connect()
+          try {
+            let timer: NodeJS.Timeout | undefined
+            await Promise.race([
+              client.query('SELECT 1'),
+              new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error('Koneksi database tidak menjawab.')), 3_000)
+              }),
+            ]).finally(() => clearTimeout(timer))
+            return client
+          } catch (error) {
+            client.release(true)
+            if (attempt >= 3) throw error
+          }
+        }
+      },
+    }
+    return new PostgresDialect({ pool: checked })
   }
   const { PGlite } = await import('@electric-sql/pglite')
   const { PGliteDialect } = await import('kysely-pglite-dialect')
