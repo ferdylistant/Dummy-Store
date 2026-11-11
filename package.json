@@ -45,5 +45,10 @@
   },
   "workspaces": [
     "server"
-  ]
+  ],
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "$zod"
+    }
+  }
 }
