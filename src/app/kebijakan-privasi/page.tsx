@@ -32,6 +32,14 @@ export default async function PrivacyPage() {
         <p>Isi keranjang disimpan di browser Anda supaya tidak hilang saat halaman dibuka lagi.</p>
       </section>
       <section>
+        <h2>Statistik kunjungan</h2>
+        <p>
+          Kami memakai Vercel Web Analytics untuk menghitung kunjungan halaman, misalnya halaman
+          yang paling sering dibuka dan perangkat yang dipakai. Data ini tidak memakai cookie dan
+          tidak dipakai untuk mengenali Anda secara pribadi.
+        </p>
+      </section>
+      <section>
         <h2>Hubungi kami</h2>
         <p>Pertanyaan tentang data pribadi bisa dikirim ke {store.email}.</p>
       </section>

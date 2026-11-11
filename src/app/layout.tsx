@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import type { ReactNode } from 'react'
@@ -71,6 +72,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <CartDrawer />
           </MotionProvider>
         </StoreSettingsProvider>
+        {/* Vercel Web Analytics: page views without cookies. Silent outside Vercel. */}
+        <Analytics />
       </body>
     </html>
   )
