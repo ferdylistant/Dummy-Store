@@ -65,7 +65,7 @@ export function FilterPanel({
                   <Link
                     rel="nofollow"
                     scroll={false}
-                    aria-pressed={active}
+                    aria-current={active ? 'true' : undefined}
                     href={catalogHref(basePath, filters, {
                       sizes: toggleValue(filters.sizes, size),
                     })}
@@ -94,7 +94,7 @@ export function FilterPanel({
                 <Link
                   rel="nofollow"
                   scroll={false}
-                  aria-pressed={active}
+                  aria-current={active ? 'true' : undefined}
                   href={catalogHref(basePath, filters, {
                     colors: toggleValue(filters.colors, color.name),
                   })}
@@ -123,7 +123,7 @@ export function FilterPanel({
                 <Link
                   rel="nofollow"
                   scroll={false}
-                  aria-pressed={active}
+                  aria-current={active ? 'true' : undefined}
                   href={catalogHref(basePath, filters, { price: active ? '' : range.value })}
                   className={ROW}
                 >
