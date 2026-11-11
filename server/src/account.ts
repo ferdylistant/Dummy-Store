@@ -1,6 +1,7 @@
 import express, { type RequestHandler } from 'express'
 import { z } from 'zod'
 import { sessionUser, type Auth } from './auth.js'
+import { cartSchema, mergeCart, readCart, replaceCart } from './cart.js'
 import type { Selectable } from 'kysely'
 import type { Database, Schema } from './db/index.js'
 import { HttpError } from './errors.js'
@@ -237,6 +238,20 @@ export function accountRouter(db: Database, auth: Auth) {
 
   router.get('/orders', async (_req, res) => {
     res.json({ items: await orderHistory(db, res.locals.userId) })
+  })
+
+  // The cart follows the account. The store sends the whole cart after each change.
+  router.get('/cart', async (_req, res) => {
+    res.json(await readCart(db, res.locals.userId))
+  })
+
+  router.put('/cart', async (req, res) => {
+    res.json(await replaceCart(db, res.locals.userId, cartSchema.parse(req.body).items))
+  })
+
+  // On sign in, the cart built as a guest joins the saved one.
+  router.post('/cart/merge', async (req, res) => {
+    res.json(await mergeCart(db, res.locals.userId, cartSchema.parse(req.body).items))
   })
 
   return router

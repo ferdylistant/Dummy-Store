@@ -7,6 +7,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Container } from '@/components/ui/container'
 import { Skeleton } from '@/components/ui/skeleton'
+import { flushCart } from '@/features/cart/cart-sync'
 import { authClient } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 
@@ -68,6 +69,8 @@ export function AccountShell({ children }: { children: ReactNode }) {
   const current = TABS.find((tab) => tab.href === pathname) ?? TABS[0]
   const signOut = async () => {
     signingOut.current = true
+    // A change still waiting to be saved reaches the account before the session ends.
+    await flushCart()
     await authClient.signOut()
     router.replace('/')
     router.refresh()

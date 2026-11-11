@@ -677,7 +677,7 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
     if (!user) throw new HttpError(404, 'not_found', 'Pelanggan tidak ditemukan.')
 
 
-    const [providers, sessions, preferences, addresses, orders] = await Promise.all([
+    const [providers, sessions, preferences, addresses, orders, cart] = await Promise.all([
       sql<{ providerId: string }>`SELECT DISTINCT "providerId" FROM account WHERE "userId" = ${user.id}`.execute(db),
       sql<{ active: number; lastSeen: Date | null }>`SELECT count(*) FILTER (WHERE "expiresAt" > now())::int AS active, max("updatedAt") AS "lastSeen"
         FROM session WHERE "userId" = ${user.id}`.execute(db),
@@ -690,6 +690,15 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
         .orderBy('id', 'desc')
         .limit(200)
         .execute(),
+      // The cart as it stands, priced now, with what is left in stock.
+      sql<{ productId: string; name: string; slug: string; color: string; size: string; quantity: number; price: number; stock: number; isActive: boolean; updatedAt: Date; mediaId: string | null }>`SELECT c.product_id AS "productId", p.name, p.slug, c.color, c.size, c.quantity, p.price, v.stock,
+          p.is_active AS "isActive", c.updated_at AS "updatedAt",
+          (SELECT media_id FROM product_images WHERE product_id = c.product_id ORDER BY position LIMIT 1) AS "mediaId"
+        FROM cart_items c
+        JOIN products p ON p.id = c.product_id
+        JOIN variants v ON v.product_id = c.product_id AND v.color = c.color AND v.size = c.size
+        WHERE c.user_id = ${user.id}
+        ORDER BY c.position`.execute(db),
     ])
 
     const ids = orders.map((order) => order.id)
@@ -770,6 +779,24 @@ export function adminRouter(db: Database, auth: Auth, mediaUrl: MediaUrl, onChan
         itemCount: quantity.get(order.id) ?? 0,
       })),
       favourites: favourites.rows.map(({ mediaId, ...row }) => ({ ...row, image: mediaId ? mediaUrl(mediaId) : null })),
+      cart: {
+        items: cart.rows.map(({ mediaId, productId, name, slug, color, size, quantity, price, stock, isActive }) => ({
+          productId,
+          name,
+          slug,
+          color,
+          size,
+          quantity,
+          price,
+          stock,
+          isActive,
+          lineTotal: price * quantity,
+          image: mediaId ? mediaUrl(mediaId) : null,
+        })),
+        quantity: cart.rows.reduce((sum, row) => sum + row.quantity, 0),
+        subtotal: cart.rows.reduce((sum, row) => sum + row.price * row.quantity, 0),
+        updatedAt: cart.rows.reduce<Date | null>((latest, row) => (!latest || row.updatedAt > latest ? row.updatedAt : latest), null),
+      },
     })
   })
 

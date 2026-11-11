@@ -7,6 +7,7 @@ import { SiteHeader } from '@/components/layout/site-header'
 import { MotionProvider } from '@/components/motion-provider'
 import { JsonLd } from '@/components/seo/json-ld'
 import { CartDrawer } from '@/features/cart/cart-drawer'
+import { CartSync } from '@/features/cart/cart-sync'
 import { StoreSettingsProvider } from '@/features/store/store-settings'
 import { ConfirmProvider } from '@/components/ui/confirm-dialog'
 import { organizationJsonLd } from '@/lib/seo'
@@ -72,6 +73,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </main>
             <SiteFooter store={store} navigation={navigation} />
             <CartDrawer />
+            <CartSync />
           </MotionProvider>
           </ConfirmProvider>
         </StoreSettingsProvider>

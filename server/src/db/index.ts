@@ -138,6 +138,16 @@ export interface Schema {
     is_default: Generated<boolean>
     created_at: Timestamp
   }
+  /** A signed in shopper's cart, kept so it follows them to every device. */
+  cart_items: {
+    user_id: string
+    product_id: string
+    color: string
+    size: string
+    quantity: number
+    position: number
+    updated_at: Timestamp
+  }
   user_preferences: {
     user_id: string
     order_updates: Generated<boolean>
@@ -354,6 +364,21 @@ export const MIGRATIONS: Record<string, Migration> = {
       ]) {
         await statement.execute(db)
       }
+    },
+  },
+  // Carts follow the account across devices. Guest carts stay in the browser.
+  '007_cart_items': {
+    async up(db) {
+      await sql`CREATE TABLE cart_items (
+        user_id text NOT NULL,
+        product_id text NOT NULL,
+        color text NOT NULL,
+        size text NOT NULL,
+        quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 99),
+        position integer NOT NULL DEFAULT 0,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, product_id, color, size)
+      )`.execute(db)
     },
   },
 }

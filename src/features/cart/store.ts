@@ -22,6 +22,13 @@ interface RemovedItem {
 
 interface CartState {
   items: CartItem[]
+  /**
+   * The account these items mirror, or null for a guest cart. A cart left by
+   * someone else is never merged into the next account that signs in here.
+   */
+  owner: string | null
+  /** The account's items changed here and the API has not stored them yet. */
+  dirty: boolean
   isOpen: boolean
   /** Counts adds, so the header badge can react to each one. */
   addedTick: number
@@ -34,6 +41,10 @@ interface CartState {
   clear: () => void
   openCart: () => void
   closeCart: () => void
+  /** The account's cart as the API keeps it. */
+  applySaved: (items: CartItem[], owner: string, dirty?: boolean) => void
+  /** Signed out: the account's cart stays in the account, this browser starts empty. */
+  forgetAccount: () => void
 }
 
 export function cartItemKey(item: Pick<CartItem, 'productId' | 'color' | 'size'>) {
@@ -44,6 +55,8 @@ export const useCart = create<CartState>()(
   persist(
     (set) => ({
       items: [],
+      owner: null,
+      dirty: false,
       isOpen: false,
       addedTick: 0,
       lastRemoved: null,
@@ -91,10 +104,12 @@ export const useCart = create<CartState>()(
       clear: () => set({ items: [], lastRemoved: null }),
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
+      applySaved: (items, owner, dirty = false) => set({ items, owner, dirty }),
+      forgetAccount: () => set({ items: [], owner: null, dirty: false, lastRemoved: null }),
     }),
     {
       name: 'dummy-store-cart',
-      partialize: (state) => ({ items: state.items }),
+      partialize: (state) => ({ items: state.items, owner: state.owner, dirty: state.dirty }),
       skipHydration: true,
     },
   ),

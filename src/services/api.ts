@@ -3,6 +3,8 @@ const IS_SERVER = typeof window === 'undefined'
 
 /** The server can reach the API over a private address, the browser cannot. */
 const BASE_URL = `${IS_SERVER ? (process.env.API_URL ?? PUBLIC_URL) : PUBLIC_URL}/api`
+/** For the few browser requests that must outlive the page, sent with keepalive. */
+export const BROWSER_API_URL = `${PUBLIC_URL}/api`
 
 // A cold API on Vercel and a sleeping Neon database can take a while to answer
 // the first request, so the server waits longer than the browser.

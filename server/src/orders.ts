@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { sql, type Selectable } from 'kysely'
 import type { Database, Schema } from './db/index.js'
+import { removeOrdered } from './cart.js'
 import { HttpError } from './errors.js'
 import type {
   PaymentGateway,
@@ -245,6 +246,9 @@ function reserveOrder(
         })),
       )
       .execute()
+
+    // What was just ordered leaves the shopper's saved cart.
+    if (userId) await removeOrdered(trx, userId, lines)
 
     return { id: order.id, orderNumber, subtotal, shipping, total, lines }
   })
