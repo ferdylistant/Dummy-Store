@@ -72,8 +72,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <CartDrawer />
           </MotionProvider>
         </StoreSettingsProvider>
-        {/* Vercel Web Analytics: page views without cookies. Silent outside Vercel. */}
-        <Analytics />
+        {/* Vercel Web Analytics: page views without cookies. Its script only exists on
+            Vercel, so elsewhere (development, other hosts) it is left out instead of failing with a 404. */}
+        {process.env.VERCEL && <Analytics />}
       </body>
     </html>
   )
