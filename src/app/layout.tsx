@@ -8,6 +8,7 @@ import { MotionProvider } from '@/components/motion-provider'
 import { JsonLd } from '@/components/seo/json-ld'
 import { CartDrawer } from '@/features/cart/cart-drawer'
 import { StoreSettingsProvider } from '@/features/store/store-settings'
+import { ConfirmProvider } from '@/components/ui/confirm-dialog'
 import { organizationJsonLd } from '@/lib/seo'
 import { navigationFor, siteConfig } from '@/lib/site'
 import { getNavigationCategories, getStoreSettings } from '@/services/store'
@@ -63,6 +64,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </a>
         <JsonLd data={organizationJsonLd()} />
         <StoreSettingsProvider settings={store}>
+          <ConfirmProvider>
           <MotionProvider>
             <SiteHeader store={store} navigation={navigation} />
             <main id="konten" tabIndex={-1} className="flex-1 outline-none">
@@ -71,6 +73,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <SiteFooter store={store} navigation={navigation} />
             <CartDrawer />
           </MotionProvider>
+          </ConfirmProvider>
         </StoreSettingsProvider>
         {/* Vercel Web Analytics: page views without cookies. Its script only exists on
             Vercel, so elsewhere (development, other hosts) it is left out instead of failing with a 404. */}

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TextAreaField, TextField } from '@/components/ui/text-field'
 import { ApiError } from '@/services/api'
@@ -149,6 +150,7 @@ function AddressEditor({
 }
 
 export function AddressBook() {
+  const confirm = useConfirm()
   const [addresses, setAddresses] = useState<Address[] | null>(null)
   const [editing, setEditing] = useState<Address | 'new' | null>(null)
   const [error, setError] = useState('')
@@ -252,7 +254,20 @@ export function AddressBook() {
                   type="button"
                   className="min-h-11 text-sm font-medium text-destructive"
                   onClick={async () => {
-                    if (!window.confirm(`Hapus alamat ${address.label}?`)) return
+                    const others = (addresses?.length ?? 1) - 1
+                    const ok = await confirm({
+                      title: `Hapus alamat ${address.label}?`,
+                      description: `${address.recipient}, ${formatAddress(address)}`,
+                      consequences: [
+                        'Alamat ini tidak muncul lagi saat checkout.',
+                        ...(address.isDefault && others > 0
+                          ? ['Ini alamat utama. Alamat terbaru yang tersisa akan menjadi alamat utama.']
+                          : []),
+                        'Pesanan yang sudah dibuat tetap memakai alamat yang tercatat di pesanan itu.',
+                      ],
+                      confirmLabel: 'Hapus Alamat',
+                    })
+                    if (!ok) return
                     await deleteAddress(address.id)
                     load()
                   }}

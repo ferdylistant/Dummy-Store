@@ -3,6 +3,7 @@
 import { Laptop, Smartphone, Tablet } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authClient } from '@/lib/auth-client'
 import { describeDevice } from '@/lib/user-agent'
@@ -33,6 +34,7 @@ function describeIp(ip: string | null | undefined) {
 
 /** Every device signed in to this account, with a way to sign each one out. */
 export function SessionList() {
+  const confirm = useConfirm()
   const { data: current } = authClient.useSession()
   const [sessions, setSessions] = useState<SessionRow[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -74,6 +76,13 @@ export function SessionList() {
   }
 
   async function revokeOthers() {
+    const ok = await confirm({
+      title: 'Keluarkan semua perangkat lain?',
+      description: `${others.length} perangkat lain akan keluar dari akun ini.`,
+      consequences: ['Perangkat itu harus masuk lagi dengan email dan password.', 'Perangkat yang sedang Anda pakai tetap masuk.'],
+      confirmLabel: 'Keluarkan Perangkat',
+    })
+    if (!ok) return
     setBusy('others')
     setMessage('')
     const { error: failure } = await authClient.revokeOtherSessions()
