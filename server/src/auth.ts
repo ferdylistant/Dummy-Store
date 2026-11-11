@@ -1,6 +1,9 @@
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
 import { sql } from 'kysely'
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { sep } from 'node:path'
 import { getMigrations } from 'better-auth/db/migration'
 import { fromNodeHeaders } from 'better-auth/node'
 import type { IncomingHttpHeaders } from 'node:http'
@@ -108,10 +111,37 @@ export function createAuth(db: Database, options: AuthOptions) {
 
 export type Auth = ReturnType<typeof createAuth>
 
-/** Creates or updates the user, session, account, and verification tables. */
-export async function migrateAuth(auth: Auth) {
+/** The installed Better Auth version, read from its package folder. Null when it cannot be found. */
+function authVersion() {
+  try {
+    const entry = createRequire(import.meta.url).resolve('better-auth')
+    const marker = `${sep}node_modules${sep}better-auth${sep}`
+    const root = entry.slice(0, entry.lastIndexOf(marker) + marker.length)
+    return (JSON.parse(readFileSync(root + 'package.json', 'utf8')) as { version: string }).version
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Creates or updates the user, session, account, and verification tables.
+ * Checking the schema takes many queries, which made every cold start on
+ * Vercel slow. With the database it remembers which Better Auth version and
+ * fields it last prepared, and skips the check while they match.
+ */
+export async function migrateAuth(auth: Auth, db?: Database) {
+  const version = authVersion()
+  const signature = version ? `${version}:${Object.keys(auth.options.user?.additionalFields ?? {}).sort().join(',')}` : null
+  if (db && signature) {
+    const { rows } = await sql<{ value: unknown }>`SELECT value FROM settings WHERE key = '__auth_schema'`.execute(db)
+    if (rows[0]?.value === signature) return
+  }
   const { runMigrations } = await getMigrations(auth.options)
   await runMigrations()
+  if (db && signature) {
+    await sql`INSERT INTO settings (key, value, updated_at) VALUES ('__auth_schema', ${JSON.stringify(signature)}::jsonb, now())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`.execute(db)
+  }
 }
 
 export async function sessionUser(auth: Auth, headers: IncomingHttpHeaders) {
@@ -132,6 +162,18 @@ export async function sessionAdmin(auth: Auth, headers: IncomingHttpHeaders) {
  * ADMIN_EMAIL and ADMIN_PASSWORD are set, so no known password ships.
  */
 export async function ensureAdmin(auth: Auth, account: { email: string; password: string; name?: string }) {
+  try {
+    return await createAdmin(auth, account)
+  } catch (error) {
+    // Two functions starting at once may both try to create the admin. The loser finds it made.
+    const context = await auth.$context
+    const existing = await context.internalAdapter.findUserByEmail(account.email)
+    if (existing) return { created: false, id: existing.user.id }
+    throw error
+  }
+}
+
+async function createAdmin(auth: Auth, account: { email: string; password: string; name?: string }) {
   const context = await auth.$context
   const existing = await context.internalAdapter.findUserByEmail(account.email)
   if (existing) {

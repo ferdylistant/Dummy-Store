@@ -366,9 +366,18 @@ export const MIGRATIONS: Record<string, Migration> = {
 async function dialectFor(url: string): Promise<Dialect> {
   if (/^postgres(ql)?:\/\//.test(url)) {
     const { Pool } = await import('pg')
-    return new PostgresDialect({
-      pool: new Pool({ connectionString: url, max: Number(process.env.DATABASE_POOL_MAX ?? 5) }),
+    const pool = new Pool({
+      connectionString: url,
+      max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+      // Neon closes idle connections, and a Vercel function can sleep between
+      // requests. Letting idle ones go early avoids reusing a dead connection.
+      idleTimeoutMillis: 10_000,
+      // A sleeping Neon database takes a moment to wake, so wait for it.
+      connectionTimeoutMillis: 20_000,
     })
+    // An idle connection that breaks must not take the whole function down.
+    pool.on('error', (error) => console.warn('Koneksi database terputus, dibuka ulang saat dibutuhkan.', error.message))
+    return new PostgresDialect({ pool })
   }
   const { PGlite } = await import('@electric-sql/pglite')
   const { PGliteDialect } = await import('kysely-pglite-dialect')

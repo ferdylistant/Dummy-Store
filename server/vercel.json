@@ -21,5 +21,8 @@
       "path": "/api/cron/expire",
       "schedule": "0 19 * * *"
     }
+  ],
+  "regions": [
+    "sin1"
   ]
 }

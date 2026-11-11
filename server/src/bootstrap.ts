@@ -33,7 +33,7 @@ export async function bootstrap() {
     mailer,
     google,
   })
-  await migrateAuth(auth)
+  await migrateAuth(auth, db)
   // Same accounts, separate sessions: the dashboard signs in on /api/admin-auth.
   const adminAuth = createAuth(db, {
     baseURL: config.adminAuthUrl,
