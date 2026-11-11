@@ -374,7 +374,18 @@ async function dialectFor(url: string): Promise<Dialect> {
       idleTimeoutMillis: 10_000,
       // A sleeping Neon database takes a moment to wake, so wait for it.
       connectionTimeoutMillis: 20_000,
+      // Notice a connection that died while the function slept, and do not keep any for long.
+      keepAlive: true,
+      maxLifetimeSeconds: 60,
+      // A query on a dead connection would otherwise wait until the function times out.
+      query_timeout: 15_000,
     })
+    // On Vercel, close idle connections before the function is suspended, so a
+    // woken function never reuses a connection that was cut while it slept.
+    if (process.env.VERCEL) {
+      const { attachDatabasePool } = await import('@vercel/functions')
+      attachDatabasePool(pool)
+    }
     // An idle connection that breaks must not take the whole function down.
     pool.on('error', (error) => console.warn('Koneksi database terputus, dibuka ulang saat dibutuhkan.', error.message))
     return new PostgresDialect({ pool })
