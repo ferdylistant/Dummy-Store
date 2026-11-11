@@ -47,3 +47,29 @@ describe('migration 006: orders without an account', () => {
     assert.equal(await stock(), start - 1, 'the guest hold is returned, the account hold stays')
   })
 })
+
+describe('database addresses', () => {
+  it('migrates over the direct Neon address, not the pooled one', async () => {
+    const { directDatabaseUrl } = await import('./index.js')
+    assert.equal(
+      directDatabaseUrl('postgresql://u:p@ep-red-glitter-123-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require'),
+      'postgresql://u:p@ep-red-glitter-123.ap-southeast-1.aws.neon.tech/neondb?sslmode=require',
+    )
+    assert.equal(directDatabaseUrl('postgres://u:p@db.example.com:5432/shop'), 'postgres://u:p@db.example.com:5432/shop')
+    assert.equal(directDatabaseUrl('data/pglite'), 'data/pglite')
+  })
+
+  it('opens an up to date database without running the migrator again', async () => {
+    const { mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const folder = mkdtempSync(join(tmpdir(), 'ds-db-'))
+    const first = await openDatabase(folder)
+    await first.destroy()
+    // A lock table row would show the migrator ran. Dropping the table makes a second run fail loudly.
+    const second = await openDatabase(folder)
+    const done = await second.selectFrom('kysely_migration' as never).select('name' as never).execute()
+    assert.equal(done.length, Object.keys(MIGRATIONS).length)
+    await second.destroy()
+  })
+})

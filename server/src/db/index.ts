@@ -367,7 +367,8 @@ async function dialectFor(url: string): Promise<Dialect> {
   if (/^postgres(ql)?:\/\//.test(url)) {
     const { Pool } = await import('pg')
     const pool = new Pool({
-      connectionString: url,
+      // pg treats require as verify-full already. Saying so keeps that and silences its warning.
+      connectionString: url.replace(/sslmode=(require|prefer|verify-ca)(?=&|$)/, 'sslmode=verify-full'),
       max: Number(process.env.DATABASE_POOL_MAX ?? 5),
       // Neon closes idle connections, and a Vercel function can sleep between
       // requests. Letting idle ones go early avoids reusing a dead connection.
@@ -423,12 +424,48 @@ async function dialectFor(url: string): Promise<Dialect> {
 
 export async function openDatabase(url: string): Promise<Database> {
   const db = new Kysely<Schema>({ dialect: await dialectFor(url) })
-  const migrator = new Migrator({ db, provider: { getMigrations: async () => MIGRATIONS } })
-  const { error } = await migrator.migrateToLatest()
-  if (error) throw error
+  // Most starts have nothing to migrate. Checking with one plain query avoids the
+  // migration lock, which a pooled Neon connection cannot hold (see migrate()).
+  if (await hasPendingMigrations(db)) await migrate(url, db)
   await seedCatalog(db)
   await seedRegions(db)
   return db
+}
+
+/** True when a migration in MIGRATIONS has not run yet, or the migration table does not exist. */
+async function hasPendingMigrations(db: Database) {
+  try {
+    const rows = (await db.selectFrom('kysely_migration' as never).select('name' as never).execute()) as { name: string }[]
+    const done = new Set(rows.map((row) => row.name))
+    return Object.keys(MIGRATIONS).some((name) => !done.has(name))
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Neon's pooled address (host with -pooler) goes through PgBouncer in
+ * transaction mode. The migrator's session advisory lock and unlock can land
+ * on different server connections there, so the lock leaks and the next start
+ * waits on it until it times out. Migrations use the direct address instead.
+ */
+export function directDatabaseUrl(url: string) {
+  if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) return url
+  const parsed = new URL(url)
+  parsed.hostname = parsed.hostname.replace('-pooler.', '.')
+  return parsed.toString()
+}
+
+async function migrate(url: string, db: Database) {
+  const direct = directDatabaseUrl(url)
+  const target = direct === url ? db : new Kysely<Schema>({ dialect: await dialectFor(direct) })
+  try {
+    const migrator = new Migrator({ db: target, provider: { getMigrations: async () => MIGRATIONS } })
+    const { error } = await migrator.migrateToLatest()
+    if (error) throw error
+  } finally {
+    if (target !== db) await target.destroy()
+  }
 }
 
 /** Sample catalog for a new database. A database that has categories is left alone. */
